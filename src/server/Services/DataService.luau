@@ -1,8 +1,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Characters = require(
-	ReplicatedStorage:WaitForChild("RojoShared"):WaitForChild("Config"):WaitForChild("Characters")
-)
+local Config = ReplicatedStorage:WaitForChild("RojoShared"):WaitForChild("Config")
+local Characters = require(Config:WaitForChild("Characters"))
+local Areas = require(Config:WaitForChild("Areas"))
 
 local DataService = {}
 local playerStates = {}
@@ -113,7 +113,7 @@ end
 
 function DataService.GetAttackDamage(player)
 	local state = playerStates[player]
-	local damage = 8
+	local damage = Areas.StarterArea.BaseAttackDamage
 	if not state or not state.equippedCompanion then
 		return damage
 	end
