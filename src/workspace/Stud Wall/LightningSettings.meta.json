@@ -1,0 +1,11 @@
+{
+  "properties": {
+    "Sandboxed": true,
+    "SerializedOverrides": {
+      "BinaryString": ""
+    },
+    "Capabilities": {
+      "SecurityCapabilities": 17996771963439872
+    }
+  }
+}

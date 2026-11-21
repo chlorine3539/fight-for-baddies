@@ -1,35 +1,148 @@
-
 {
   "name": "roblox-experience",
-  "servePlaceIds": [
-    131561688993497
-  ],
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",
-      "$ignoreUnknownInstances": true,
       "RojoShared": {
+        "$properties": {
+          "ExplorerIconContent": {
+            "Content": "None"
+          },
+          "SerializedOverrides": {
+            "BinaryString": ""
+          }
+        },
         "$path": "src/shared"
-      }
+      },
+      "$properties": {
+        "SerializedOverrides": {
+          "BinaryString": ""
+        }
+      },
+      "$ignoreUnknownInstances": true
     },
     "ServerScriptService": {
       "$className": "ServerScriptService",
-      "$ignoreUnknownInstances": true,
       "RojoServer": {
+        "$properties": {
+          "ExplorerIconContent": {
+            "Content": "None"
+          },
+          "SerializedOverrides": {
+            "BinaryString": ""
+          }
+        },
         "$path": "src/server"
-      }
+      },
+      "$properties": {
+        "SerializedOverrides": {
+          "BinaryString": ""
+        }
+      },
+      "$ignoreUnknownInstances": true
     },
     "StarterPlayer": {
       "$className": "StarterPlayer",
-      "$ignoreUnknownInstances": true,
       "StarterPlayerScripts": {
         "$className": "StarterPlayerScripts",
-        "$ignoreUnknownInstances": true,
         "RojoClient": {
+          "$properties": {
+            "ExplorerIconContent": {
+              "Content": "None"
+            },
+            "SerializedOverrides": {
+              "BinaryString": ""
+            }
+          },
           "$path": "src/client"
+        },
+        "$properties": {
+          "SerializedOverrides": {
+            "BinaryString": ""
+          }
+        },
+        "$ignoreUnknownInstances": true
+      },
+      "$properties": {
+        "AvatarJointUpgrade": "Enabled",
+        "CameraMaxZoomDistance": 128.0,
+        "CharacterBreakJointsOnDeath": false,
+        "CharacterUseJumpPower": false,
+        "SerializedOverrides": {
+          "BinaryString": ""
+        },
+        "UseImprovedCharacterEvents": {
+          "Enum": 0
         }
-      }
+      },
+      "$ignoreUnknownInstances": true
+    },
+    "Workspace": {
+      "$className": "Workspace",
+      "$properties": {
+        "ExplorerIconContent": {
+          "Content": "None"
+        },
+        "InputSinkEnabled": {
+          "Enum": 0
+        },
+        "NextGenerationPhysicsSolver": {
+          "Enum": 0
+        },
+        "ParticlesUseDynamicWind": {
+          "Enum": 0
+        },
+        "PlayerCharacterDestroyBehavior": "Enabled",
+        "PlayerScriptsUseInputActionSystem": "Enabled",
+        "ReplicationFrequency": {
+          "Enum": 0
+        },
+        "ReplicationThroughput": {
+          "Enum": 0
+        },
+        "SerializedOverrides": {
+          "BinaryString": ""
+        },
+        "SignalBehavior": "Deferred",
+        "StreamOutBehavior": "Opportunistic",
+        "StreamingEnabled": true,
+        "StreamingIntegrityMode": "PauseOutsideLoadedArea",
+        "WorldPivotData": {
+          "OptionalCFrame": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ]
+          }
+        }
+      },
+      "$attributes": {
+        "Rojo_Target_CurrentCamera": "47010a17c37a92d20b13538b000003e9"
+      },
+      "$ignoreUnknownInstances": true,
+      "$path": "src/workspace"
     }
-  }
+  },
+  "servePlaceIds": [
+    131561688993497
+  ]
 }
