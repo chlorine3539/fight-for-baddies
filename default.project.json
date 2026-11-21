@@ -1,0 +1,15 @@
+{
+  "name": "fight-for-baddies",
+  "tree": {
+    "$className": "DataModel",
+    "$path": "src"
+  },
+  "servePlaceIds": [
+    131561688993497
+  ],
+  "syncbackRules": {
+    "syncCurrentCamera": false,
+    "syncUnscriptable": true,
+    "ignoreReferents": false
+  }
+}

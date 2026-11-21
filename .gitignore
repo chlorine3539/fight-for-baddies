@@ -1,0 +1,5 @@
+/build/
+/*.rbxl
+/*.rbxlx
+/sourcemap.json
+.DS_Store
