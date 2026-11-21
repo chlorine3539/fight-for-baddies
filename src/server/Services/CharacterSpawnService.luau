@@ -38,6 +38,12 @@ local function findFreeSpawn()
 	return nil, nil
 end
 
+local function isPlayerNear(player, part)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart")
+	return root ~= nil and (root.Position - part.Position).Magnitude <= 12
+end
+
 local function spawnCharacter(characterId, onTalk, onRecruit)
 	if activeCharacters[characterId] then
 		return
@@ -134,7 +140,9 @@ local function spawnCharacter(characterId, onTalk, onRecruit)
 	talkPrompt.RequiresLineOfSight = false
 	talkPrompt.Parent = torso
 	talkPrompt.Triggered:Connect(function(player)
-		onTalk(player, characterId)
+		if isPlayerNear(player, torso) then
+			onTalk(player, characterId)
+		end
 	end)
 
 	local recruitPrompt = Instance.new("ProximityPrompt")
@@ -147,6 +155,9 @@ local function spawnCharacter(characterId, onTalk, onRecruit)
 	recruitPrompt.RequiresLineOfSight = false
 	recruitPrompt.Parent = torso
 	recruitPrompt.Triggered:Connect(function(player)
+		if not isPlayerNear(player, torso) then
+			return
+		end
 		if onRecruit(player, characterId) then
 			if activeCharacters[characterId] == model then
 				activeCharacters[characterId] = nil

@@ -29,6 +29,11 @@ function DataService.Init(remote)
 end
 
 function DataService.Initialize(player)
+	if playerStates[player] then
+		DataService.Sync(player, "Welcome back!")
+		return
+	end
+
 	playerStates[player] = {
 		love = 0,
 		ownedCharacters = {},
