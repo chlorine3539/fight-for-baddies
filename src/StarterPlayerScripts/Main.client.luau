@@ -99,18 +99,31 @@ ExitPullupBtn.Text = "Barfiksten İn (E / Space)"
 local epCorner = Instance.new("UICorner", ExitPullupBtn)
 epCorner.CornerRadius = UDim.new(0, 8)
 
+local function setPullupState(isOn)
+	isOnPullup = (isOn == true)
+	PullupPanel.Visible = isOnPullup
+
+	local mapFolder = workspace:FindFirstChild("SimulatorBaseplateMap")
+	local systems = mapFolder and mapFolder:FindFirstChild("SimulatorSystems")
+	local station = systems and systems:FindFirstChild("GymPullupStation")
+	local bar = station and station:FindFirstChild("PullupBar")
+	local prompt = bar and bar:FindFirstChild("PullupBarPrompt")
+	if prompt then
+		prompt.Enabled = not isOnPullup
+	end
+end
+
 local function requestExitPullup()
 	if not isOnPullup then return end
-	isOnPullup = false
-	PullupPanel.Visible = false
+	setPullupState(false)
 	EvTogglePullup:FireServer(false)
 end
 
 ExitPullupBtn.MouseButton1Click:Connect(requestExitPullup)
 
-EvTogglePullup.OnClientEvent:Connect(function(isOn)
-	isOnPullup = (isOn == true)
-	PullupPanel.Visible = isOnPullup
+EvTogglePullup.OnClientEvent:Connect(setPullupState)
+LocalPlayer.CharacterAdded:Connect(function()
+	setPullupState(false)
 end)
 
 -- 2 SANİYELİK KIRMIZI RET & DURUM BİLDİRİMİ
