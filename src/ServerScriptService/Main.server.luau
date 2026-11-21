@@ -478,6 +478,7 @@ local function setupPlayer(player)
 		player:SetAttribute("OnPullup", false)
 		player:SetAttribute("InArena", false)
 		player:SetAttribute("DuelPending", false)
+		savedHumanoidMovement[char] = nil
 		placeCharacterAtSpawn(char)
 	end)
 end
@@ -642,6 +643,7 @@ BarPrompt.RequiresLineOfSight = false
 
 local pullupCooldowns = {}
 local savedMotorC0 = {}
+local savedHumanoidMovement = {}
 
 local function applyPullupLimbPose(character, isHanging, isPulledUp)
 	local animateScript = character:FindFirstChild("Animate")
@@ -718,49 +720,85 @@ local function applyPullupLimbPose(character, isHanging, isPulledUp)
 end
 
 local function togglePlayerPullup(player, forceState)
-	if player:GetAttribute("InArena") or player:GetAttribute("DuelPending") then return end
 	local current = player:GetAttribute("OnPullup") == true
-	local nextState = not current
-	if forceState ~= nil then
-		nextState = forceState == true
-	end
-	if nextState == current then return end
+	local nextState = forceState == nil and not current or forceState == true
 
-	player:SetAttribute("OnPullup", nextState)
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-	if hrp and hum then
-		if nextState then
-			hum.WalkSpeed = 0
-			hum.JumpPower = 0
-			hum.AutoRotate = false
-			hrp.Anchored = true
-			hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
-			applyPullupLimbPose(char, true, false)
+	if nextState then
+		-- Restrictions apply to entering the station, never to leaving it.
+		if player:GetAttribute("InArena") or player:GetAttribute("DuelPending") then return end
+		if current then
 			EvTogglePullup:FireClient(player, true)
-		else
-			applyPullupLimbPose(char, false, false)
-			hrp.Anchored = false
-			hum.AutoRotate = true
-			hum.WalkSpeed = 16
-			hum.JumpPower = 50
-			hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 3.5, 5.5))
-			EvTogglePullup:FireClient(player, false)
+			return
+		end
+		if not hrp or not hum or hum.Health <= 0 then return end
+
+		savedHumanoidMovement[char] = {
+			WalkSpeed = hum.WalkSpeed,
+			JumpPower = hum.JumpPower,
+			JumpHeight = hum.JumpHeight,
+			AutoRotate = hum.AutoRotate,
+			PlatformStand = hum.PlatformStand,
+		}
+		player:SetAttribute("OnPullup", true)
+		hum.WalkSpeed = 0
+		hum.JumpPower = 0
+		hum.JumpHeight = 0
+		hum.AutoRotate = false
+		hrp.Anchored = true
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
+		pcall(applyPullupLimbPose, char, true, false)
+		EvTogglePullup:FireClient(player, true)
+		return
+	end
+
+	-- A false request is an idempotent cleanup. It also recovers a character
+	-- whose pull-up attribute and anchored state became desynchronized.
+	if player:GetAttribute("InArena") then return end
+	local isAtStation = hrp and hrp.Anchored and (hrp.Position - GYM_POS).Magnitude <= 18
+	if not current and not isAtStation then
+		EvTogglePullup:FireClient(player, false)
+		return
+	end
+
+	player:SetAttribute("OnPullup", false)
+	if hrp then
+		hrp.Anchored = false
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+		hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 3.5, 5.5))
+	end
+	if hum then
+		hum.PlatformStand = false
+		hum.Sit = false
+		hum.AutoRotate = true
+		local saved = char and savedHumanoidMovement[char]
+		hum.WalkSpeed = saved and saved.WalkSpeed or 16
+		hum.JumpPower = saved and saved.JumpPower or 50
+		hum.JumpHeight = saved and saved.JumpHeight or 7.2
+		if hum.Health > 0 then
+			hum:ChangeState(Enum.HumanoidStateType.GettingUp)
 		end
 	end
+	if char then
+		pcall(applyPullupLimbPose, char, false, false)
+		savedHumanoidMovement[char] = nil
+	end
+	EvTogglePullup:FireClient(player, false)
 end
-
 BarPrompt.Triggered:Connect(function(player)
 	togglePlayerPullup(player)
 end)
 
 EvTogglePullup.OnServerEvent:Connect(function(player)
-	-- This remote is exit-only. Entering the station is handled by the server prompt.
-	if player:GetAttribute("OnPullup") == true then
-		togglePlayerPullup(player, false)
-	end
+	-- Exit requests are always handled server-side and acknowledged, even if
+	-- the client and server temporarily disagree about the current state.
+	togglePlayerPullup(player, false)
 end)
 
 EvPullupAction.OnServerEvent:Connect(function(player)
