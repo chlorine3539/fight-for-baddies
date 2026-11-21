@@ -113,16 +113,21 @@ local function setPullupState(isOn)
 	end
 end
 
+local exitRequestPending = false
 local function requestExitPullup()
-	if not isOnPullup then return end
-	setPullupState(false)
+	if not isOnPullup or exitRequestPending then return end
+	exitRequestPending = true
 	EvTogglePullup:FireServer(false)
 end
 
 ExitPullupBtn.MouseButton1Click:Connect(requestExitPullup)
 
-EvTogglePullup.OnClientEvent:Connect(setPullupState)
+EvTogglePullup.OnClientEvent:Connect(function(isOn)
+	exitRequestPending = false
+	setPullupState(isOn)
+end)
 LocalPlayer.CharacterAdded:Connect(function()
+	exitRequestPending = false
 	setPullupState(false)
 end)
 
