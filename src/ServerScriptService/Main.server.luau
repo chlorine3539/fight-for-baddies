@@ -8,6 +8,7 @@ local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
+local savedHumanoidMovement = {}
 
 -- Eski harita ve varsayılan parçaları temizle
 for _, obj in ipairs(Workspace:GetChildren()) do
@@ -643,7 +644,6 @@ BarPrompt.RequiresLineOfSight = false
 
 local pullupCooldowns = {}
 local savedMotorC0 = {}
-local savedHumanoidMovement = {}
 
 local function applyPullupLimbPose(character, isHanging, isPulledUp)
 	local animateScript = character:FindFirstChild("Animate")
@@ -741,7 +741,6 @@ local function togglePlayerPullup(player, forceState)
 			JumpPower = hum.JumpPower,
 			JumpHeight = hum.JumpHeight,
 			AutoRotate = hum.AutoRotate,
-			PlatformStand = hum.PlatformStand,
 		}
 		player:SetAttribute("OnPullup", true)
 		hum.WalkSpeed = 0
@@ -776,8 +775,12 @@ local function togglePlayerPullup(player, forceState)
 	if hum then
 		hum.PlatformStand = false
 		hum.Sit = false
-		hum.AutoRotate = true
 		local saved = char and savedHumanoidMovement[char]
+		if saved then
+			hum.AutoRotate = saved.AutoRotate
+		else
+			hum.AutoRotate = true
+		end
 		hum.WalkSpeed = saved and saved.WalkSpeed or 16
 		hum.JumpPower = saved and saved.JumpPower or 50
 		hum.JumpHeight = saved and saved.JumpHeight or 7.2
