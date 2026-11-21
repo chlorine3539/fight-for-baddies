@@ -1,11 +1,12 @@
 -- ========================================================================
--- 1. SUNUCU SCRİPTİ (ServerScriptService -> Script)
+-- TEK PARÇA BİRLEŞTİRİLMİŞ TAM OYUN SCRİPTİ (ServerScriptService -> Script)
 -- ========================================================================
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 
 -- Eski harita ve varsayılan parçaları temizle
@@ -394,7 +395,7 @@ for i = 1, 26 do
 end
 
 ------------------------------------------------------------------------
--- 6. AĞAÇLAR
+-- 6. AĞAÇLAR (SPAWN VE BARFİKS ALANINDAN TEMİZLENMİŞ)
 ------------------------------------------------------------------------
 local DecorFolder = Instance.new("Folder", MapFolder)
 DecorFolder.Name = "SimulatorTrees"
@@ -468,6 +469,7 @@ local function setupPlayer(player)
 
 	player:SetAttribute("OnPullup", false)
 	player:SetAttribute("InArena", false)
+	player:SetAttribute("DuelPending", false)
 
 	if player.Character then
 		task.spawn(placeCharacterAtSpawn, player.Character)
@@ -475,6 +477,7 @@ local function setupPlayer(player)
 	player.CharacterAdded:Connect(function(char)
 		player:SetAttribute("OnPullup", false)
 		player:SetAttribute("InArena", false)
+		player:SetAttribute("DuelPending", false)
 		placeCharacterAtSpawn(char)
 	end)
 end
@@ -590,16 +593,24 @@ local FlushSFX = Instance.new("Sound", tSeat)
 FlushSFX.SoundId = "rbxassetid://9114221735"
 FlushSFX.Volume = 0.8
 
+local toiletRewards = {}
 FlushPrompt.Triggered:Connect(function(plr)
-	FlushSFX:Play()
-	EvNotify:FireClient(plr, "Secret", "Gizli tuvaleti buldun! (+5 Love)")
 	local ls = plr:FindFirstChild("leaderstats")
-	if ls and ls:FindFirstChild("Love") then
-		ls.Love.Value += 5
+	local love = ls and ls:FindFirstChild("Love")
+	if not love then return end
+
+	if toiletRewards[plr.UserId] then
+		EvNotify:FireClient(plr, "Secret", "Bu gizli ödülü zaten aldın.")
+		return
 	end
+
+	toiletRewards[plr.UserId] = true
+	FlushSFX:Play()
+	love.Value += 5
+	EvNotify:FireClient(plr, "Secret", "Gizli tuvaleti buldun! (+5 Love)")
 end)
 
--- B) BARFİKS ALANI (TAM FİZİKSEL VE İSTEMCİ SENKRONİZASYONLU)
+-- B) BARFİKS ALANI (TAM ANİMASYONLU VE GİRİŞ/ÇIKIŞ GARANTİLİ)
 local PullupFolder = Instance.new("Model", ModFolder)
 PullupFolder.Name = "GymPullupStation"
 
@@ -624,71 +635,167 @@ gPart("RightPost", Enum.PartType.Cylinder, Vector3.new(11.5, 0.9, 0.9), CFrame.n
 local PullupBar = gPart("PullupBar", Enum.PartType.Cylinder, Vector3.new(11.6, 0.5, 0.5), CFrame.new(GYM_POS + Vector3.new(0, 11.2, 0)), Enum.Material.Metal, Color3.fromRGB(225, 185, 85), false)
 
 local BarPrompt = Instance.new("ProximityPrompt", PullupBar)
-BarPrompt.Name = "PullupBarPrompt"
-BarPrompt.ActionText = "Barfikse Tutun"
+BarPrompt.ActionText = "Barfiks Çek"
 BarPrompt.ObjectText = "Güç İstasyonu"
 BarPrompt.MaxActivationDistance = 14
 BarPrompt.RequiresLineOfSight = false
 
 local pullupCooldowns = {}
-local toggleDebounce = {}
+local savedMotorC0 = {}
 
-local function setPlayerPullupState(player, state)
-	if player:GetAttribute("InArena") then return end
-	if toggleDebounce[player] then return end
-	toggleDebounce[player] = true
-	task.delay(0.25, function() toggleDebounce[player] = nil end)
+local function applyPullupLimbPose(character, isHanging, isPulledUp)
+	local animateScript = character:FindFirstChild("Animate")
+	if animateScript then
+		animateScript.Disabled = isHanging
+	end
 
-	player:SetAttribute("OnPullup", state)
+	local hum = character:FindFirstChildOfClass("Humanoid")
+	if hum and isHanging then
+		for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
+			track:Stop(0)
+		end
+	end
+
+	local torso = character:FindFirstChild("Torso")
+	if torso then
+		local rs = torso:FindFirstChild("Right Shoulder")
+		local ls = torso:FindFirstChild("Left Shoulder")
+		local rh = torso:FindFirstChild("Right Hip")
+		local lh = torso:FindFirstChild("Left Hip")
+		if rs and ls and rh and lh then
+			if not savedMotorC0[character] then
+				savedMotorC0[character] = { rs = rs.C0, ls = ls.C0, rh = rh.C0, lh = lh.C0 }
+			end
+			if isHanging then
+				local armPitch = isPulledUp and math.rad(130) or math.rad(175)
+				local legBend = isPulledUp and math.rad(25) or math.rad(10)
+				TweenService:Create(rs, TweenInfo.new(0.11), { C0 = CFrame.new(1, 0.7, 0) * CFrame.Angles(armPitch, math.rad(90), 0) }):Play()
+				TweenService:Create(ls, TweenInfo.new(0.11), { C0 = CFrame.new(-1, 0.7, 0) * CFrame.Angles(armPitch, math.rad(-90), 0) }):Play()
+				TweenService:Create(rh, TweenInfo.new(0.11), { C0 = CFrame.new(1, -1, 0) * CFrame.Angles(-legBend, math.rad(90), 0) }):Play()
+				TweenService:Create(lh, TweenInfo.new(0.11), { C0 = CFrame.new(-1, -1, 0) * CFrame.Angles(-legBend, math.rad(-90), 0) }):Play()
+			else
+				rs.C0 = savedMotorC0[character].rs
+				ls.C0 = savedMotorC0[character].ls
+				rh.C0 = savedMotorC0[character].rh
+				lh.C0 = savedMotorC0[character].lh
+				savedMotorC0[character] = nil
+			end
+		end
+	else
+		local rUA = character:FindFirstChild("RightUpperArm")
+		local lUA = character:FindFirstChild("LeftUpperArm")
+		local rLA = character:FindFirstChild("RightLowerArm")
+		local lLA = character:FindFirstChild("LeftLowerArm")
+		local rs = rUA and rUA:FindFirstChild("RightShoulder")
+		local ls = lUA and lUA:FindFirstChild("LeftShoulder")
+		local re = rLA and rLA:FindFirstChild("RightElbow")
+		local le = lLA and lLA:FindFirstChild("LeftElbow")
+		if rs and ls then
+			if not savedMotorC0[character] then
+				savedMotorC0[character] = {
+					rs = rs.C0, ls = ls.C0,
+					re = re and re.C0, le = le and le.C0
+				}
+			end
+			if isHanging then
+				local shoulderPitch = isPulledUp and math.rad(135) or math.rad(175)
+				local elbowBend = isPulledUp and math.rad(65) or math.rad(8)
+				TweenService:Create(rs, TweenInfo.new(0.11), { C0 = CFrame.new(rs.C0.Position) * CFrame.Angles(shoulderPitch, 0, math.rad(-6)) }):Play()
+				TweenService:Create(ls, TweenInfo.new(0.11), { C0 = CFrame.new(ls.C0.Position) * CFrame.Angles(shoulderPitch, 0, math.rad(6)) }):Play()
+				if re and le then
+					TweenService:Create(re, TweenInfo.new(0.11), { C0 = CFrame.new(re.C0.Position) * CFrame.Angles(elbowBend, 0, 0) }):Play()
+					TweenService:Create(le, TweenInfo.new(0.11), { C0 = CFrame.new(le.C0.Position) * CFrame.Angles(elbowBend, 0, 0) }):Play()
+				end
+			else
+				rs.C0 = savedMotorC0[character].rs
+				ls.C0 = savedMotorC0[character].ls
+				if re and savedMotorC0[character].re then re.C0 = savedMotorC0[character].re end
+				if le and savedMotorC0[character].le then le.C0 = savedMotorC0[character].le end
+				savedMotorC0[character] = nil
+			end
+		end
+	end
+end
+
+local function togglePlayerPullup(player, forceState)
+	if player:GetAttribute("InArena") or player:GetAttribute("DuelPending") then return end
+	local current = player:GetAttribute("OnPullup") == true
+	local nextState = not current
+	if forceState ~= nil then
+		nextState = forceState == true
+	end
+	if nextState == current then return end
+
+	player:SetAttribute("OnPullup", nextState)
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 
 	if hrp and hum then
-		if state then
+		if nextState then
 			hum.WalkSpeed = 0
 			hum.JumpPower = 0
 			hum.AutoRotate = false
 			hrp.Anchored = true
-			hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25))
+			hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
+			applyPullupLimbPose(char, true, false)
+			EvTogglePullup:FireClient(player, true)
 		else
+			applyPullupLimbPose(char, false, false)
 			hrp.Anchored = false
-			hum.PlatformStand = false
 			hum.AutoRotate = true
 			hum.WalkSpeed = 16
 			hum.JumpPower = 50
-			hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 3.5, 6.5))
+			hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 3.5, 5.5))
+			EvTogglePullup:FireClient(player, false)
 		end
 	end
-	EvTogglePullup:FireClient(player, state)
 end
 
 BarPrompt.Triggered:Connect(function(player)
-	if not player:GetAttribute("OnPullup") then
-		setPlayerPullupState(player, true)
+	togglePlayerPullup(player)
+end)
+
+EvTogglePullup.OnServerEvent:Connect(function(player)
+	-- This remote is exit-only. Entering the station is handled by the server prompt.
+	if player:GetAttribute("OnPullup") == true then
+		togglePlayerPullup(player, false)
 	end
 end)
 
-EvTogglePullup.OnServerEvent:Connect(function(player, requestedState)
-	local target = (requestedState ~= nil) and requestedState or false
-	setPlayerPullupState(player, target)
-end)
-
 EvPullupAction.OnServerEvent:Connect(function(player)
-	if not player:GetAttribute("OnPullup") then return end
+	if player:GetAttribute("OnPullup") ~= true or player:GetAttribute("InArena") then return end
+
 	local now = os.clock()
-	if pullupCooldowns[player] and now - pullupCooldowns[player] < 0.2 then return end
-	pullupCooldowns[player] = now
+	if pullupCooldowns[player] and now - pullupCooldowns[player] < 0.26 then return end
+
+	local char = player.Character
+	local hrp = char and char:FindFirstChild("HumanoidRootPart")
+	local hum = char and char:FindFirstChildOfClass("Humanoid")
+	if not hrp or not hum or hum.Health <= 0 or not hrp.Anchored then return end
+	if (hrp.Position - GYM_POS).Magnitude > 18 then return end
 
 	local ls = player:FindFirstChild("leaderstats")
-	if not ls then return end
-	local power = ls.Power
-	local love = ls.Love
+	local power = ls and ls:FindFirstChild("Power")
+	local love = ls and ls:FindFirstChild("Love")
+	if not power or not love then return end
 
+	pullupCooldowns[player] = now
 	local baseGain = 1
 	local loveBonus = love.Value * 0.01
 	local totalGain = math.max(1, math.floor((baseGain + loveBonus) * 100) / 100)
 	power.Value = math.floor((power.Value + totalGain) * 100) / 100
+
+	local upCF = CFrame.new(GYM_POS + Vector3.new(0, 9.4, 0.15)) * CFrame.Angles(math.rad(-8), 0, 0)
+	local downCF = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
+	applyPullupLimbPose(char, true, true)
+	TweenService:Create(hrp, TweenInfo.new(0.11, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = upCF }):Play()
+	task.delay(0.13, function()
+		if player.Parent and player:GetAttribute("OnPullup") and hrp.Parent then
+			applyPullupLimbPose(char, true, false)
+			TweenService:Create(hrp, TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = downCF }):Play()
+		end
+	end)
 
 	EvPullupAction:FireClient(player, totalGain)
 end)
@@ -729,7 +836,7 @@ for i = 1, 16 do
 	end
 end
 
-local function giveArenaSword(targetModel, damageValue)
+local function giveArenaSword(targetModel, damageValue, opponentModel)
 	local tool = Instance.new("Tool")
 	tool.Name = "ArenaBlade"
 	tool.RequiresHandle = true
@@ -747,9 +854,11 @@ local function giveArenaSword(targetModel, damageValue)
 	slashSFX.Volume = 0.7
 
 	local swingCD = false
+	local attackWindowEndsAt = 0
 	tool.Activated:Connect(function()
 		if swingCD then return end
 		swingCD = true
+		attackWindowEndsAt = os.clock() + 0.28
 		slashSFX:Play()
 		local str = Instance.new("StringValue", tool)
 		str.Name = "toolanim"
@@ -760,8 +869,9 @@ local function giveArenaSword(targetModel, damageValue)
 
 	local hitCD = {}
 	handle.Touched:Connect(function(hit)
-		local victimChar = hit.Parent
-		if not victimChar or victimChar == targetModel then return end
+		if os.clock() > attackWindowEndsAt then return end
+		local victimChar = hit:FindFirstAncestorOfClass("Model")
+		if not victimChar or victimChar == targetModel or victimChar ~= opponentModel then return end
 		local hum = victimChar:FindFirstChildOfClass("Humanoid")
 		if hum and hum.Health > 0 and not hitCD[victimChar] then
 			hitCD[victimChar] = true
@@ -909,13 +1019,17 @@ end
 
 -- E) ARENA DÜELLO BAŞLATICI
 local function startArenaDuel(player, rarityInfo)
-	if player:GetAttribute("InArena") then return end
+	if player:GetAttribute("InArena") or player:GetAttribute("DuelPending") ~= true then return end
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local ls = player:FindFirstChild("leaderstats")
-	if not (hrp and hum and ls) then return end
+	if not (hrp and hum and hum.Health > 0 and ls) then
+		player:SetAttribute("DuelPending", false)
+		return
+	end
 
+	player:SetAttribute("DuelPending", false)
 	player:SetAttribute("InArena", true)
 	local returnCF = hrp.CFrame
 
@@ -930,9 +1044,6 @@ local function startArenaDuel(player, rarityInfo)
 	local playerSwordDmg = math.max(25, math.floor(bossMaxHP / 4))
 	local bossSwordDmg = math.max(8, math.floor(18 * mult))
 
-	local playerSword = giveArenaSword(char, playerSwordDmg)
-	hum:EquipTool(playerSword)
-
 	local bossPos = ARENA_CENTER + Vector3.new(0, 3, 24)
 	local bossNPC, bossHum, bossHRP = buildPlainRig("ArenaRival_" .. player.Name, bossPos, rarityInfo, true)
 	bossHum.MaxHealth = bossMaxHP
@@ -940,7 +1051,10 @@ local function startArenaDuel(player, rarityInfo)
 	bossNPC.Parent = ArenaFolder
 	spawnBurstEffect(bossPos, rarityInfo.Color)
 
-	local bossSword = giveArenaSword(bossNPC, bossSwordDmg)
+	local playerSword = giveArenaSword(char, playerSwordDmg, bossNPC)
+	hum:EquipTool(playerSword)
+
+	local bossSword = giveArenaSword(bossNPC, bossSwordDmg, char)
 	bossHum:EquipTool(bossSword)
 
 	EvNotify:FireClient(player, "ArenaStart", rarityInfo.Name .. " rakiple düello başladı! Kılıcınla saldır!")
@@ -955,6 +1069,7 @@ local function startArenaDuel(player, rarityInfo)
 			bossNPC:Destroy()
 		end
 		player:SetAttribute("InArena", false)
+		player:SetAttribute("DuelPending", false)
 		if hrp and hrp.Parent then
 			hrp.CFrame = returnCF
 		end
@@ -989,17 +1104,41 @@ end
 
 -- F) DİYALOG SEÇENEKLERİ VE NPC DOĞUM YÖNETİMİ
 local activeNPCData = {}
+local pendingNPCInteractions = {}
+
+Players.PlayerRemoving:Connect(function(player)
+	pendingNPCInteractions[player] = nil
+	pullupCooldowns[player] = nil
+end)
 
 EvDialogueChoice.OnServerEvent:Connect(function(player, npcModel, choiceIndex)
+	if typeof(npcModel) ~= "Instance" or not npcModel:IsA("Model") then return end
+	if typeof(choiceIndex) ~= "number" or choiceIndex % 1 ~= 0 or choiceIndex < 1 or choiceIndex > 4 then return end
+	if player:GetAttribute("InArena") or player:GetAttribute("OnPullup") or player:GetAttribute("DuelPending") then return end
+
+	local interaction = pendingNPCInteractions[player]
+	if not interaction or interaction.npc ~= npcModel or interaction.expiresAt < os.clock() then
+		pendingNPCInteractions[player] = nil
+		return
+	end
+	pendingNPCInteractions[player] = nil
+
 	local info = activeNPCData[npcModel]
-	if not info or not npcModel or not npcModel.Parent then return end
+	if not info or not npcModel:IsDescendantOf(NPCFolder) then return end
+
+	local char = player.Character
+	local playerRoot = char and char:FindFirstChild("HumanoidRootPart")
+	local npcRoot = npcModel:FindFirstChild("HumanoidRootPart")
+	if not playerRoot or not npcRoot or (playerRoot.Position - npcRoot.Position).Magnitude > 18 then return end
 
 	local ls = player:FindFirstChild("leaderstats")
-	if not ls then return end
-	local pPower = ls.Power.Value
-	local pLove = ls.Love
-
+	local power = ls and ls:FindFirstChild("Power")
+	local pLove = ls and ls:FindFirstChild("Love")
+	if not power or not pLove then return end
+	local pPower = power.Value
 	if pPower < info.ReqPower then return end
+
+	player:SetAttribute("DuelPending", true)
 
 	local deltaLove = 0
 	if choiceIndex == 1 then
@@ -1047,7 +1186,7 @@ local function spawnSingleRoamingNPC()
 	prompt.RequiresLineOfSight = false
 
 	prompt.Triggered:Connect(function(player)
-		if player:GetAttribute("InArena") or player:GetAttribute("OnPullup") then return end
+		if player:GetAttribute("InArena") or player:GetAttribute("OnPullup") or player:GetAttribute("DuelPending") then return end
 		local ls = player:FindFirstChild("leaderstats")
 		if not ls then return end
 
@@ -1056,6 +1195,7 @@ local function spawnSingleRoamingNPC()
 				.. " (Gereken Güç: " .. rarityInfo.ReqPower .. ")"
 			EvNotify:FireClient(player, "Reject", msg)
 		else
+			pendingNPCInteractions[player] = { npc = npc, expiresAt = os.clock() + 20 }
 			EvInteractNPC:FireClient(player, npc, rarityInfo.Name, rarityInfo.ReqPower)
 		end
 	end)
@@ -1083,3 +1223,5 @@ end
 for i = 1, 20 do
 	task.delay(i * 0.15, spawnSingleRoamingNPC)
 end
+
+-- Client behaviour is implemented in StarterPlayerScripts/Main.client.luau.
