@@ -38,20 +38,33 @@ src/
 
 ## Show the map while editing in Studio
 
-The map is generated from code, so it does not appear in a freshly opened place until the builder is run. To create it in edit mode:
+The map is generated from code. To create a saved copy that is visible without pressing Test:
 
-1. Start `rojo serve` from the repository root and connect the Rojo plugin in Studio.
-2. In Studio, open **View → Command Bar**.
-3. Run this command once:
+1. Start `rojo serve` from the repository root and connect the Rojo plugin in Studio so `ReplicatedStorage.WorldBuilder` is synced.
+2. Disconnect the Rojo plugin and stop `rojo serve` before generating the map. This prevents live sync from treating the newly generated Workspace objects as untracked instances.
+3. In Studio, open **View → Command Bar** and run:
 
    ```lua
    require(game:GetService("ReplicatedStorage"):WaitForChild("WorldBuilder")).Build()
    ```
 
-4. The map will be created directly in `Workspace` and will remain visible without starting a test session.
-5. Save the place in Roblox Studio.
+4. Save a place snapshot as `place.rbxl` in the repository root.
+5. Export the generated Workspace objects into the Rojo project:
 
-The server calls the same builder when a play session starts. It replaces the saved generated map with a fresh copy, so the edit-mode map is not duplicated during testing.
+   ```sh
+   rojo syncback . --input place.rbxl --dry-run --list
+   ```
+
+   Review the preview, then apply it:
+
+   ```sh
+   rojo syncback . --input place.rbxl -y
+   git status
+   ```
+
+6. Restart `rojo serve` and reconnect the plugin. The generated map is now part of `src/Workspace` and remains visible in edit mode.
+
+The server calls the same builder when a play session starts. It replaces the saved `SimulatorBaseplateMap` with a fresh copy, so the edit-mode map is not duplicated during testing.
 
 ## Live development
 
