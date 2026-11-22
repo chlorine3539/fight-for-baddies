@@ -523,12 +523,27 @@ local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"
 ScreenGui.Name = "SimulatorHUD"
 ScreenGui.ResetOnSpawn = false
 
+local function addSizeConstraints(instance, minWidth, maxWidth, minHeight, maxHeight)
+	local constraint = Instance.new("UISizeConstraint", instance)
+	constraint.MinSize = Vector2.new(minWidth, minHeight)
+	constraint.MaxSize = Vector2.new(maxWidth, maxHeight)
+	return constraint
+end
+
+local function addTextConstraints(instance, minSize, maxSize)
+	local constraint = Instance.new("UITextSizeConstraint", instance)
+	constraint.MinTextSize = minSize
+	constraint.MaxTextSize = maxSize
+	return constraint
+end
+
 -- SOL ORTA POWER & LOVE GUI PANELİ
 local StatsFrame = Instance.new("Frame", ScreenGui)
-StatsFrame.Size = UDim2.new(0, 180, 0, 78)
-StatsFrame.Position = UDim2.new(0, 16, 0.45, -39)
+StatsFrame.Size = UDim2.new(0.26, 0, 0, 78)
+StatsFrame.Position = UDim2.new(0.02, 8, 0.45, -39)
 StatsFrame.BackgroundColor3 = Color3.fromRGB(22, 24, 34)
 StatsFrame.BackgroundTransparency = 0.12
+addSizeConstraints(StatsFrame, 150, 220, 74, 86)
 
 local stCorner = Instance.new("UICorner", StatsFrame)
 stCorner.CornerRadius = UDim.new(0, 10)
@@ -541,20 +556,24 @@ PowerLbl.Size = UDim2.new(1, -16, 0, 30)
 PowerLbl.Position = UDim2.new(0, 10, 0, 6)
 PowerLbl.BackgroundTransparency = 1
 PowerLbl.Font = Enum.Font.GothamBold
-PowerLbl.TextSize = 14
+PowerLbl.TextSize = 13
+PowerLbl.TextWrapped = true
 PowerLbl.TextXAlignment = Enum.TextXAlignment.Left
 PowerLbl.TextColor3 = Color3.fromRGB(255, 210, 75)
 PowerLbl.Text = "💪 Power: 0"
+addTextConstraints(PowerLbl, 11, 15)
 
 local LoveLbl = Instance.new("TextLabel", StatsFrame)
 LoveLbl.Size = UDim2.new(1, -16, 0, 30)
 LoveLbl.Position = UDim2.new(0, 10, 0, 38)
 LoveLbl.BackgroundTransparency = 1
 LoveLbl.Font = Enum.Font.GothamBold
-LoveLbl.TextSize = 14
+LoveLbl.TextSize = 13
+LoveLbl.TextWrapped = true
 LoveLbl.TextXAlignment = Enum.TextXAlignment.Left
 LoveLbl.TextColor3 = Color3.fromRGB(255, 115, 185)
 LoveLbl.Text = "❤️ Love: 10"
+addTextConstraints(LoveLbl, 11, 15)
 
 task.spawn(function()
 	local ls = LocalPlayer:WaitForChild("leaderstats", 15)
@@ -573,31 +592,39 @@ end)
 
 -- BARFİKS KONTROL PANELİ (TIKLA & İN BUTONU)
 local PullupPanel = Instance.new("Frame", ScreenGui)
-PullupPanel.Size = UDim2.new(0, 260, 0, 72)
-PullupPanel.Position = UDim2.new(0.5, -130, 0.78, 0)
+PullupPanel.AnchorPoint = Vector2.new(0.5, 0)
+PullupPanel.Size = UDim2.new(0.62, 0, 0, 86)
+PullupPanel.Position = UDim2.new(0.5, 0, 0.74, 0)
 PullupPanel.BackgroundColor3 = Color3.fromRGB(24, 28, 38)
 PullupPanel.Visible = false
+addSizeConstraints(PullupPanel, 240, 320, 82, 92)
 
 local ppCorner = Instance.new("UICorner", PullupPanel)
 ppCorner.CornerRadius = UDim.new(0, 10)
 
 local PullupHint = Instance.new("TextLabel", PullupPanel)
-PullupHint.Size = UDim2.new(1, -12, 0, 24)
-PullupHint.Position = UDim2.new(0, 6, 0, 5)
+PullupHint.Size = UDim2.new(1, -12, 0, 26)
+PullupHint.Position = UDim2.new(0, 6, 0, 4)
 PullupHint.BackgroundTransparency = 1
 PullupHint.Font = Enum.Font.GothamSemibold
 PullupHint.TextSize = 12
+PullupHint.TextWrapped = true
 PullupHint.TextColor3 = Color3.fromRGB(255, 220, 110)
 PullupHint.Text = "Ekrana Tıklayarak Barfiks Çek!"
+addTextConstraints(PullupHint, 11, 14)
 
 local ExitPullupBtn = Instance.new("TextButton", PullupPanel)
-ExitPullupBtn.Size = UDim2.new(0, 175, 0, 32)
-ExitPullupBtn.Position = UDim2.new(0.5, -87, 0, 33)
+ExitPullupBtn.AnchorPoint = Vector2.new(0.5, 0)
+ExitPullupBtn.Size = UDim2.new(0.68, 0, 0, 44)
+ExitPullupBtn.Position = UDim2.new(0.5, 0, 0, 34)
 ExitPullupBtn.BackgroundColor3 = Color3.fromRGB(215, 65, 75)
 ExitPullupBtn.Font = Enum.Font.GothamBold
-ExitPullupBtn.TextSize = 13
+ExitPullupBtn.TextSize = 12
+ExitPullupBtn.TextWrapped = true
 ExitPullupBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 ExitPullupBtn.Text = "Barfiksten İn (E / Space)"
+addSizeConstraints(ExitPullupBtn, 180, 260, 44, 52)
+addTextConstraints(ExitPullupBtn, 11, 14)
 
 local epCorner = Instance.new("UICorner", ExitPullupBtn)
 epCorner.CornerRadius = UDim.new(0, 8)
@@ -656,16 +683,19 @@ end)
 
 -- 2 SANİYELİK KIRMIZI RET & DURUM BİLDİRİMİ
 local BannerLabel = Instance.new("TextLabel", ScreenGui)
-BannerLabel.Size = UDim2.new(0.46, 0, 0, 34)
-BannerLabel.Position = UDim2.new(0.27, 0, 0.14, 0)
+BannerLabel.AnchorPoint = Vector2.new(0.5, 0)
+BannerLabel.Size = UDim2.new(0.62, 0, 0, 42)
+BannerLabel.Position = UDim2.new(0.5, 0, 0.1, 0)
 BannerLabel.BackgroundColor3 = Color3.fromRGB(22, 16, 22)
 BannerLabel.BackgroundTransparency = 1
 BannerLabel.TextTransparency = 1
 BannerLabel.TextStrokeTransparency = 1
 BannerLabel.Font = Enum.Font.GothamBold
-BannerLabel.TextSize = 14
+BannerLabel.TextSize = 13
 BannerLabel.TextWrapped = true
 BannerLabel.Text = ""
+addSizeConstraints(BannerLabel, 240, 520, 36, 52)
+addTextConstraints(BannerLabel, 11, 16)
 
 local BannerCorner = Instance.new("UICorner", BannerLabel)
 BannerCorner.CornerRadius = UDim.new(0, 8)
@@ -692,17 +722,21 @@ end
 
 local function spawnFloatingPopup(text, color)
 	local lbl = Instance.new("TextLabel", ScreenGui)
-	lbl.Size = UDim2.new(0, 150, 0, 26)
-	lbl.Position = UDim2.new(0.5 + (math.random(-10, 10) / 100), -75, 0.56, 0)
+	lbl.AnchorPoint = Vector2.new(0.5, 0.5)
+	lbl.Size = UDim2.new(0.42, 0, 0, 30)
+	lbl.Position = UDim2.new(0.5 + (math.random(-8, 8) / 100), 0, 0.55, 0)
 	lbl.BackgroundTransparency = 1
 	lbl.Font = Enum.Font.GothamBold
-	lbl.TextSize = 15
+	lbl.TextSize = 13
+	lbl.TextWrapped = true
 	lbl.TextColor3 = color
 	lbl.TextStrokeTransparency = 0.25
 	lbl.Text = text
+	addSizeConstraints(lbl, 150, 240, 26, 38)
+	addTextConstraints(lbl, 11, 15)
 
 	local tw = TweenService:Create(lbl, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = lbl.Position - UDim2.new(0, 0, 0.13, 0),
+		Position = lbl.Position - UDim2.new(0, 0, 0.12, 0),
 		TextTransparency = 1,
 		TextStrokeTransparency = 1,
 	})
@@ -712,10 +746,12 @@ end
 
 -- 4 SEÇENEKLİ DİYALOG PENCERESİ
 local DialogFrame = Instance.new("Frame", ScreenGui)
-DialogFrame.Size = UDim2.new(0, 410, 0, 225)
-DialogFrame.Position = UDim2.new(0.5, -205, 0.64, 0)
+DialogFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+DialogFrame.Size = UDim2.new(0.88, 0, 0, 248)
+DialogFrame.Position = UDim2.new(0.5, 0, 0.58, 0)
 DialogFrame.BackgroundColor3 = Color3.fromRGB(24, 26, 36)
 DialogFrame.Visible = false
+addSizeConstraints(DialogFrame, 300, 430, 238, 260)
 
 local dfCorner = Instance.new("UICorner", DialogFrame)
 dfCorner.CornerRadius = UDim.new(0, 12)
@@ -724,15 +760,28 @@ dfStroke.Color = Color3.fromRGB(255, 115, 175)
 dfStroke.Thickness = 2
 
 local TitleLbl = Instance.new("TextLabel", DialogFrame)
-TitleLbl.Size = UDim2.new(1, -20, 0, 32)
-TitleLbl.Position = UDim2.new(0, 10, 0, 8)
+TitleLbl.Size = UDim2.new(1, -16, 0, 38)
+TitleLbl.Position = UDim2.new(0, 8, 0, 6)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.TextSize = 15
+TitleLbl.TextSize = 13
+TitleLbl.TextScaled = true
+TitleLbl.TextWrapped = true
 TitleLbl.TextColor3 = Color3.fromRGB(255, 185, 215)
 TitleLbl.Text = "Sohbet Seçeneğini Seç"
+addTextConstraints(TitleLbl, 11, 15)
 
 local currentNPC = nil
+local dialogueChoiceSent = false
+
+local function setDialogVisible(visible)
+	DialogFrame.Visible = visible
+	StatsFrame.Visible = not visible
+	if not visible then
+		currentNPC = nil
+	end
+end
+
 local choiceLabels = {
 	"Soğuk davran (-Power/10 Love)",
 	"Dostça konuş (+Power/10 Love)",
@@ -742,13 +791,17 @@ local choiceLabels = {
 
 for idx = 1, 4 do
 	local btn = Instance.new("TextButton", DialogFrame)
-	btn.Size = UDim2.new(1, -22, 0, 36)
-	btn.Position = UDim2.new(0, 11, 0, 44 + (idx - 1) * 42)
+	btn.Size = UDim2.new(1, -18, 0, 44)
+	btn.Position = UDim2.new(0, 9, 0, 48 + (idx - 1) * 48)
 	btn.BackgroundColor3 = Color3.fromRGB(38, 42, 58)
 	btn.Font = Enum.Font.GothamMedium
 	btn.TextSize = 12
+	btn.TextScaled = true
+	btn.TextWrapped = true
 	btn.TextColor3 = Color3.fromRGB(245, 245, 255)
 	btn.Text = choiceLabels[idx]
+	addSizeConstraints(btn, 220, 400, 44, 52)
+	addTextConstraints(btn, 11, 14)
 
 	local bc = Instance.new("UICorner", btn)
 	bc.CornerRadius = UDim.new(0, 8)
@@ -761,21 +814,27 @@ for idx = 1, 4 do
 	end)
 
 	btn.MouseButton1Click:Connect(function()
+		if dialogueChoiceSent then return end
+		dialogueChoiceSent = true
 		if currentNPC then
 			EvDialogueChoice:FireServer(currentNPC, idx)
 		end
-		DialogFrame.Visible = false
-		currentNPC = nil
+		setDialogVisible(false)
+		task.delay(1, function()
+			dialogueChoiceSent = false
+		end)
 	end)
 end
 
 EvInteractNPC.OnClientEvent:Connect(function(npcModel, rarityName)
 	currentNPC = npcModel
+	dialogueChoiceSent = false
 	TitleLbl.Text = "💬 " .. rarityName .. " Karakterle Konuşuyorsun"
-	DialogFrame.Size = UDim2.new(0, 370, 0, 200)
-	DialogFrame.Visible = true
+	setDialogVisible(true)
+	local targetSize = UDim2.new(0.88, 0, 0, 248)
+	DialogFrame.Size = UDim2.new(0.78, 0, 0, 232)
 	TweenService:Create(DialogFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-		Size = UDim2.new(0, 410, 0, 225),
+		Size = targetSize,
 	}):Play()
 end)
 
