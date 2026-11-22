@@ -151,6 +151,9 @@ EvTogglePullup.Name = "TogglePullup"
 local EvNotify = Instance.new("RemoteEvent", NetFolder)
 EvNotify.Name = "Notify"
 
+local EvArenaAttack = Instance.new("RemoteEvent", NetFolder)
+EvArenaAttack.Name = "ArenaAttack"
+
 -- A) GİZLİ TUVALET
 local trees = DecorFolder:GetChildren()
 local targetTree = trees[1]
@@ -472,6 +475,97 @@ local ARENA_CENTER = Vector3.new(0, 4500, 0)
 local ArenaFolder = Instance.new("Folder", ModFolder)
 ArenaFolder.Name = "HiddenDuelArena"
 
+-- A client sends an attack request only. Target selection, hit detection,
+-- damage, hit windows and cooldowns all stay on this server.
+local ARENA_RADIUS = 50
+local HITBOX_FORWARD = 4
+local HITBOX_SIZE = Vector3.new(6, 5, 10)
+local MAX_MELEE_DISTANCE = 9
+local PLAYER_HIT_WINDOW = 0.26
+local PLAYER_SWING_COOLDOWN = 0.5
+local NPC_HIT_WINDOW = 0.26
+local NPC_SWING_COOLDOWN = 1.1
+
+local activeDuels = {} -- [player] = active duel record
+
+local function isAliveHumanoid(humanoid)
+	return humanoid ~= nil and humanoid.Health > 0
+end
+
+local function isInsideDuelArena(hrp, center)
+	if not hrp then return false end
+	local offset = hrp.Position - center
+	return math.abs(offset.Y) <= 30 and Vector2.new(offset.X, offset.Z).Magnitude <= ARENA_RADIUS
+end
+
+local function isMeleeTargetInReach(attackerModel, targetModel, targetHumanoid)
+	if not isAliveHumanoid(targetHumanoid) then return false end
+	local attackerHRP = attackerModel and attackerModel:FindFirstChild("HumanoidRootPart")
+	local targetHRP = targetModel and targetModel:FindFirstChild("HumanoidRootPart")
+	if not attackerHRP or not targetHRP then return false end
+	if (attackerHRP.Position - targetHRP.Position).Magnitude > MAX_MELEE_DISTANCE then return false end
+
+	local direction = targetHRP.Position - attackerHRP.Position
+	direction.Y = 0
+	if direction.Magnitude < 0.001 then
+		direction = attackerHRP.CFrame.LookVector
+		direction.Y = 0
+	end
+	if direction.Magnitude < 0.001 then return false end
+	direction = direction.Unit
+
+	local lookAt = Vector3.new(targetHRP.Position.X, attackerHRP.Position.Y, targetHRP.Position.Z)
+	local hitCFrame = CFrame.new(attackerHRP.Position + direction * HITBOX_FORWARD, lookAt)
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Include
+	params.FilterDescendantsInstances = { targetModel }
+
+	for _, part in ipairs(Workspace:GetPartBoundsInBox(hitCFrame, HITBOX_SIZE, params)) do
+		if part:FindFirstAncestorOfClass("Model") == targetModel then
+			return true
+		end
+	end
+	return false
+end
+
+local function newSwingState()
+	return { token = 0, hit = false, readyAt = 0 }
+end
+
+local function performMeleeSwing(duel, swingState, sword, attackerModel, targetModel, targetHumanoid, damage, hitWindow, cooldown)
+	if not duel.active or os.clock() < swingState.readyAt then return false end
+
+	swingState.readyAt = os.clock() + cooldown
+	swingState.token += 1
+	swingState.hit = false
+	local token = swingState.token
+
+	if sword and sword.Parent then
+		local slash = Instance.new("StringValue")
+		slash.Name = "toolanim"
+		slash.Value = "Slash"
+		slash.Parent = sword
+		Debris:AddItem(slash, 0.2)
+		local slashSFX = sword:FindFirstChild("SlashSFX", true)
+		if slashSFX then slashSFX:Play() end
+	end
+
+	task.spawn(function()
+		local deadline = os.clock() + hitWindow
+		while duel.active and swingState.token == token and not swingState.hit and os.clock() < deadline do
+			if isMeleeTargetInReach(attackerModel, targetModel, targetHumanoid) then
+				swingState.hit = true
+				if isAliveHumanoid(targetHumanoid) then
+					targetHumanoid:TakeDamage(damage)
+				end
+				break
+			end
+			task.wait(0.04)
+		end
+	end)
+	return true
+end
+
 local function aPart(n, sh, sz, cf, mat, col, cc)
 	local p = Instance.new("Part", ArenaFolder)
 	p.Name = n
@@ -503,7 +597,7 @@ for i = 1, 16 do
 	end
 end
 
-local function giveArenaSword(holderModel, damageValue, opponentModel)
+local function giveArenaSword(holderModel)
 	local tool = Instance.new("Tool")
 	tool.Name = "ArenaBlade"
 	tool.RequiresHandle = true
@@ -519,49 +613,9 @@ local function giveArenaSword(holderModel, damageValue, opponentModel)
 	handle.Parent = tool
 
 	local slashSFX = Instance.new("Sound", handle)
+	slashSFX.Name = "SlashSFX"
 	slashSFX.SoundId = "rbxassetid://12222216"
 	slashSFX.Volume = 0.7
-
-	local swingCooldown = false
-	local swingActive = false
-	local hasHitThisSwing = false
-
-	tool.Activated:Connect(function()
-		if swingCooldown or tool.Parent ~= holderModel then return end
-		local attackerHumanoid = holderModel:FindFirstChildOfClass("Humanoid")
-		local opponentHumanoid = opponentModel and opponentModel:FindFirstChildOfClass("Humanoid")
-		if not attackerHumanoid or attackerHumanoid.Health <= 0 or not opponentHumanoid or opponentHumanoid.Health <= 0 then return end
-
-		swingCooldown = true
-		swingActive = true
-		hasHitThisSwing = false
-		slashSFX:Play()
-		local animation = Instance.new("StringValue")
-		animation.Name = "toolanim"
-		animation.Value = "Slash"
-		animation.Parent = tool
-		Debris:AddItem(animation, 0.2)
-
-		task.delay(0.28, function()
-			swingActive = false
-		end)
-		task.delay(0.45, function()
-			swingCooldown = false
-		end)
-	end)
-
-	handle.Touched:Connect(function(hit)
-		if not swingActive or hasHitThisSwing or tool.Parent ~= holderModel then return end
-		local victimModel = hit:FindFirstAncestorOfClass("Model")
-		if victimModel ~= opponentModel then return end
-
-		local attackerHumanoid = holderModel:FindFirstChildOfClass("Humanoid")
-		local victimHumanoid = opponentModel and opponentModel:FindFirstChildOfClass("Humanoid")
-		if not attackerHumanoid or attackerHumanoid.Health <= 0 or not victimHumanoid or victimHumanoid.Health <= 0 then return end
-
-		hasHitThisSwing = true
-		victimHumanoid:TakeDamage(damageValue)
-	end)
 
 	tool.Parent = holderModel
 	return tool
@@ -703,11 +757,12 @@ end
 -- E) ARENA DÜELLO BAŞLATICI
 local function startArenaDuel(player, rarityInfo)
 	if player:GetAttribute("InArena") or player:GetAttribute("DuelPending") ~= true then return false end
+	if activeDuels[player] then return false end
 	local char = player.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
 	local hum = char and char:FindFirstChildOfClass("Humanoid")
 	local ls = player:FindFirstChild("leaderstats")
-	if not (hrp and hum and hum.Health > 0 and ls) then return false end
+	if not (hrp and hum and hum.Health > 0 and ls and ls.Power and ls.Love) then return false end
 
 	player:SetAttribute("InArena", true)
 	player:SetAttribute("DuelPending", false)
@@ -731,56 +786,119 @@ local function startArenaDuel(player, rarityInfo)
 	bossNPC.Parent = ArenaFolder
 	spawnBurstEffect(bossPos, rarityInfo.Color)
 
-	local playerSword = giveArenaSword(char, playerSwordDmg, bossNPC)
+	local playerSword = giveArenaSword(char)
 	hum:EquipTool(playerSword)
-	local bossSword = giveArenaSword(bossNPC, bossSwordDmg, char)
+	local bossSword = giveArenaSword(bossNPC)
 	bossHum:EquipTool(bossSword)
+
+	local duel = {
+		player = player,
+		character = char,
+		center = ARENA_CENTER,
+		opponent = bossNPC,
+		playerSword = playerSword,
+		bossSword = bossSword,
+		playerDamage = playerSwordDmg,
+		npcDamage = bossSwordDmg,
+		playerSwing = newSwingState(),
+		npcSwing = newSwingState(),
+		connections = {},
+		active = true,
+	}
+	activeDuels[player] = duel
+
+	local finishDuel
+	finishDuel = function(won)
+		if not duel.active then return end
+		duel.active = false
+		for _, connection in ipairs(duel.connections) do
+			connection:Disconnect()
+		end
+		table.clear(duel.connections)
+		activeDuels[player] = nil
+
+		if playerSword and playerSword.Parent then playerSword:Destroy() end
+		if bossNPC and bossNPC.Parent then
+			if bossHRP and bossHRP.Parent then
+				spawnBurstEffect(bossHRP.Position, rarityInfo.Color)
+			end
+			bossNPC:Destroy()
+		end
+
+		player:SetAttribute("InArena", false)
+		player:SetAttribute("DuelPending", false)
+		if player.Parent and player.Character == char and hrp.Parent then
+			hrp.CFrame = returnCF
+		end
+
+		if won then
+			if player.Parent and ls.Parent == player then
+				local bonusLove = math.max(5, math.floor(pPower * 0.12))
+				ls.Love.Value += bonusLove
+				EvNotify:FireClient(player, "ArenaWin", "Düelloyu kazandın! (+" .. bonusLove .. " Love)")
+			end
+		elseif player.Parent then
+			EvNotify:FireClient(player, "ArenaLose", "Düelloyu kaybettin! Gücünü artırıp tekrar dene.")
+		end
+	end
+	duel.finish = finishDuel
+
+	local function track(connection)
+		table.insert(duel.connections, connection)
+	end
+	track(bossHum.Died:Connect(function() finishDuel(true) end))
+	track(hum.Died:Connect(function() finishDuel(false) end))
+	track(char.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then finishDuel(false) end
+	end))
+	track(player.CharacterAdded:Connect(function(newCharacter)
+		if newCharacter ~= char then finishDuel(false) end
+	end))
 
 	EvNotify:FireClient(player, "ArenaStart", rarityInfo.Name .. " rakiple düello başladı! Kılıcınla saldır!")
 
-	local ended = false
-	local function finishDuel(won)
-		if ended then return end
-		ended = true
-		if playerSword and playerSword.Parent then playerSword:Destroy() end
-		if bossNPC and bossNPC.Parent then
-			spawnBurstEffect(bossHRP.Position, rarityInfo.Color)
-			bossNPC:Destroy()
-		end
-		player:SetAttribute("InArena", false)
-		player:SetAttribute("DuelPending", false)
-		if player.Parent and player.Character == char and hrp and hrp.Parent then
-			hrp.CFrame = returnCF
-		end
-		if won then
-			local bonusLove = math.max(5, math.floor(pPower * 0.12))
-			ls.Love.Value += bonusLove
-			if player.Parent then EvNotify:FireClient(player, "ArenaWin", "Düelloyu kazandın! (+" .. bonusLove .. " Love)") end
-		else
-			if player.Parent then EvNotify:FireClient(player, "ArenaLose", "Düelloyu kaybettin! Gücünü artırıp tekrar dene.") end
-		end
-	end
-
+	-- The NPC uses the same server-side hit logic on its own independent cooldown.
 	task.spawn(function()
-		while not ended and bossNPC.Parent and bossHum.Health > 0 and hum.Health > 0 do
-			if hrp and hrp.Parent then
-				bossHum:MoveTo(hrp.Position)
+		local nextMoveAt = 0
+		while duel.active and bossNPC.Parent and isAliveHumanoid(hum) and isAliveHumanoid(bossHum) do
+			if hrp.Parent and isInsideDuelArena(hrp, ARENA_CENTER)
+				and isInsideDuelArena(bossHRP, ARENA_CENTER) then
+				if os.clock() >= nextMoveAt then
+					bossHum:MoveTo(hrp.Position)
+					nextMoveAt = os.clock() + 0.35
+				end
 				if (bossHRP.Position - hrp.Position).Magnitude <= 7 then
-					bossSword:Activate()
+					performMeleeSwing(duel, duel.npcSwing, bossSword, bossNPC, char, hum,
+						duel.npcDamage, NPC_HIT_WINDOW, NPC_SWING_COOLDOWN)
 				end
 			end
-			task.wait(0.35)
+			task.wait(0.12)
 		end
 	end)
 
-	bossHum.Died:Connect(function() finishDuel(true) end)
-	hum.Died:Connect(function()
-		task.wait(0.2)
-		finishDuel(false)
-	end)
 	task.delay(60, function() finishDuel(false) end)
 	return true
 end
+
+-- Attack requests carry no target, damage, cooldown or position information.
+EvArenaAttack.OnServerEvent:Connect(function(player)
+	local duel = activeDuels[player]
+	if not duel or not duel.active then return end
+
+	local character = player.Character
+	if character ~= duel.character then return end
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local opponentHumanoid = duel.opponent and duel.opponent:FindFirstChildOfClass("Humanoid")
+	if not isAliveHumanoid(humanoid) or not isAliveHumanoid(opponentHumanoid) then return end
+
+	local hrp = character:FindFirstChild("HumanoidRootPart")
+	if not isInsideDuelArena(hrp, duel.center) then return end
+	if humanoid:FindFirstChildOfClass("Tool") ~= duel.playerSword then return end
+	if duel.playerSword.Parent ~= character then return end
+
+	performMeleeSwing(duel, duel.playerSwing, duel.playerSword, character, duel.opponent,
+		opponentHumanoid, duel.playerDamage, PLAYER_HIT_WINDOW, PLAYER_SWING_COOLDOWN)
+end)
 
 -- F) DİYALOG SEÇENEKLERİ VE NPC DOĞUM YÖNETİMİ
 local activeNPCData = {}
@@ -925,6 +1043,8 @@ for i = 1, 20 do
 end
 
 Players.PlayerRemoving:Connect(function(player)
+	local duel = activeDuels[player]
+	if duel then duel.finish(false) end
 	pullupCooldowns[player] = nil
 	pendingNPCInteractions[player] = nil
 	local character = player.Character

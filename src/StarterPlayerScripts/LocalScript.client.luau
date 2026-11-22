@@ -14,8 +14,72 @@ local EvDialogueChoice = NetFolder:WaitForChild("DialogueChoice")
 local EvPullupAction = NetFolder:WaitForChild("PullupAction")
 local EvTogglePullup = NetFolder:WaitForChild("TogglePullup")
 local EvNotify = NetFolder:WaitForChild("Notify")
+local EvArenaAttack = NetFolder:WaitForChild("ArenaAttack")
 
 local isOnPullup = false
+
+-- Tool input events only fire in client-side LocalScripts. Watch the arena
+-- blade and forward only an attack request; the server resolves everything.
+local characterConnections = {}
+local swordConnections = {}
+
+local function isHeldByLocalCharacter(tool)
+	local character = LocalPlayer.Character
+	return character ~= nil and tool.Parent ~= nil
+		and tool:FindFirstAncestorOfClass("Model") == character
+end
+
+local function clearArenaSwordWatch()
+	for _, connection in ipairs(swordConnections) do
+		connection:Disconnect()
+	end
+	table.clear(swordConnections)
+end
+
+local function clearCharacterWatch()
+	for _, connection in ipairs(characterConnections) do
+		connection:Disconnect()
+	end
+	table.clear(characterConnections)
+	clearArenaSwordWatch()
+end
+
+local function watchArenaSword(tool)
+	clearArenaSwordWatch()
+	if not tool:IsA("Tool") or tool.Name ~= "ArenaBlade" then return end
+
+	table.insert(swordConnections, tool.Activated:Connect(function()
+		if isHeldByLocalCharacter(tool) then
+			EvArenaAttack:FireServer()
+		end
+	end))
+	table.insert(swordConnections, tool.AncestryChanged:Connect(function()
+		if not isHeldByLocalCharacter(tool) then
+			clearArenaSwordWatch()
+		end
+	end))
+end
+
+local function bindArenaSwordWatch(character)
+	clearCharacterWatch()
+	if not character then return end
+	for _, child in ipairs(character:GetChildren()) do
+		if child:IsA("Tool") and child.Name == "ArenaBlade" then
+			watchArenaSword(child)
+			break
+		end
+	end
+	table.insert(characterConnections, character.ChildAdded:Connect(function(child)
+		if child:IsA("Tool") and child.Name == "ArenaBlade" then
+			watchArenaSword(child)
+		end
+	end))
+end
+
+if LocalPlayer.Character then
+	bindArenaSwordWatch(LocalPlayer.Character)
+end
+LocalPlayer.CharacterAdded:Connect(bindArenaSwordWatch)
 
 -- Diğer oyuncuların barfiks çektiğini gizleme + NPC'lere yaklaştıkça yazıyı büyütme
 RunService.RenderStepped:Connect(function()
