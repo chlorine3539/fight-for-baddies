@@ -1,0 +1,10 @@
+{
+  "className": "Sky",
+  "properties": {
+    "StarCount": 800.0,
+    "SerializedOverrides": {
+      "BinaryString": ""
+    },
+    "SunAngularSize": 20.0
+  }
+}
