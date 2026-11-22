@@ -287,6 +287,11 @@ local function togglePlayerPullup(player, forceState)
 		hrp.AssemblyAngularVelocity = Vector3.zero
 		hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
 		EvTogglePullup:FireClient(player, true)
+		humanoid.Died:Connect(function()
+			if player.Parent and player:GetAttribute("OnPullup") == true then
+				togglePlayerPullup(player, false)
+			end
+		end)
 		return
 	end
 

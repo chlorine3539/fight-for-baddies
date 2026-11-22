@@ -94,8 +94,8 @@ local POSE_JOINTS = {
 	["LeftShoulder"] = { side = -1, limb = "Shoulder" },
 	["RightElbow"] = { side = 1, limb = "Elbow" },
 	["LeftElbow"] = { side = -1, limb = "Elbow" },
-	["RightUpperLeg"] = { side = 1, limb = "Leg" },
-	["LeftUpperLeg"] = { side = -1, limb = "Leg" },
+	["RightHip"] = { side = 1, limb = "Leg" },
+	["LeftHip"] = { side = -1, limb = "Leg" },
 }
 
 local pullupPose = {
@@ -107,6 +107,9 @@ local pullupPose = {
 	joints = {},
 	phase = "hang",
 	phaseToken = 0,
+	appliedToken = 0,
+	phaseStartedAt = 0,
+	deathConnection = nil,
 }
 local poseSimulationConnection = nil
 
@@ -139,8 +142,11 @@ local function applyPullupPoseFrame()
 		return
 	end
 	if pose.animator and pose.animator.EvaluationThrottled then return end
+	pose.appliedToken = pose.phaseToken
 
 	local isUp = pose.phase == "up"
+	local alpha = math.clamp((os.clock() - pose.phaseStartedAt) / 0.11, 0, 1)
+	alpha = alpha * alpha * (3 - 2 * alpha)
 	for _, entry in ipairs(pose.joints) do
 		local joint = entry.joint
 		if not joint.Parent then
@@ -148,9 +154,12 @@ local function applyPullupPoseFrame()
 			return
 		end
 		if entry.usesC0 then
-			joint.C0 = legacyC0ForPose(entry.config, isUp)
+			joint.C0 = entry.baseC0:Lerp(legacyC0ForPose(entry.config, isUp), alpha)
 		else
-			joint.Transform = constraintOffsetForPose(entry.config, isUp) * entry.baseTransform
+			-- The Animator owns the base Transform; layer only the procedural
+			-- offset from identity so it cannot bake in an arbitrary idle pose
+			-- or accumulate across frames.
+			joint.Transform = CFrame.identity:Lerp(constraintOffsetForPose(entry.config, isUp), alpha)
 		end
 	end
 end
@@ -161,20 +170,28 @@ stopPullupPose = function()
 		poseSimulationConnection = nil
 	end
 	local pose = pullupPose
+	if pose.deathConnection then
+		pose.deathConnection:Disconnect()
+		pose.deathConnection = nil
+	end
 	if not pose.active then return end
 	pose.active = false
 	pose.phaseToken += 1
 	for _, entry in ipairs(pose.joints) do
 		if entry.joint.Parent then
-			if entry.usesC0 then
-				entry.joint.C0 = entry.baseC0
-			else
-				entry.joint.Transform = entry.baseTransform
-			end
+			pcall(function()
+				if entry.usesC0 then
+					entry.joint.C0 = entry.baseC0
+				else
+					entry.joint.Transform = entry.restoreTransform
+				end
+			end)
 		end
 	end
 	if pose.animateScript and pose.animateScript.Parent then
-		pose.animateScript.Disabled = pose.animateWasDisabled
+		pcall(function()
+			pose.animateScript.Disabled = pose.animateWasDisabled
+		end)
 	end
 	table.clear(pose.joints)
 	pose.character = nil
@@ -185,7 +202,7 @@ end
 local function startPullupPose(character)
 	stopPullupPose()
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-	if not humanoid then return end
+	if not humanoid then return false end
 
 	local pose = pullupPose
 	pose.active = true
@@ -193,6 +210,9 @@ local function startPullupPose(character)
 	pose.animator = humanoid:FindFirstChildOfClass("Animator")
 	pose.phase = "hang"
 	pose.phaseToken += 1
+	pose.appliedToken = 0
+	pose.phaseStartedAt = os.clock()
+	pose.deathConnection = humanoid.Died:Connect(stopPullupPose)
 
 	local animateScript = character:FindFirstChild("Animate")
 	pose.animateScript = animateScript
@@ -213,7 +233,8 @@ local function startPullupPose(character)
 				})
 			else
 				table.insert(pose.joints, {
-					joint = descendant, config = config, usesC0 = false, baseTransform = descendant.Transform,
+					joint = descendant, config = config, usesC0 = false,
+					restoreTransform = descendant.Transform,
 				})
 			end
 		end
@@ -228,17 +249,26 @@ local function startPullupPose(character)
 			end
 		end)
 	end
+	return true
 end
 
 local function setPullupPosePhase(isUp)
 	if not pullupPose.active then return end
 	pullupPose.phase = isUp and "up" or "hang"
 	pullupPose.phaseToken += 1
+	pullupPose.phaseStartedAt = os.clock()
 	local token = pullupPose.phaseToken
 	if isUp then
-		task.delay(0.13, function()
+		task.spawn(function()
+			while pullupPose.active and pullupPose.phaseToken == token
+				and pullupPose.appliedToken < token do
+				task.wait()
+			end
+			task.wait(0.13)
 			if pullupPose.active and pullupPose.phaseToken == token then
 				pullupPose.phase = "hang"
+				pullupPose.phaseToken += 1
+				pullupPose.phaseStartedAt = os.clock()
 			end
 		end)
 	end
@@ -400,7 +430,16 @@ EvTogglePullup.OnClientEvent:Connect(function(isOn)
 	setPullupState(isOn)
 	if isOn then
 		if not pullupPose.active then
-			startPullupPose(LocalPlayer.Character)
+			local character = LocalPlayer.Character
+			if not startPullupPose(character) then
+				task.spawn(function()
+					local humanoid = character and character:WaitForChild("Humanoid", 5)
+					if humanoid and LocalPlayer:GetAttribute("OnPullup") == true
+						and not pullupPose.active then
+						startPullupPose(character)
+					end
+				end)
+			end
 		end
 	else
 		stopPullupPose()
