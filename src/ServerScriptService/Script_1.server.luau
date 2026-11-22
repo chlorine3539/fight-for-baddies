@@ -3,7 +3,6 @@
 -- The exported Workspace map is the source of truth in edit mode and at runtime.
 -- ========================================================================
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
@@ -15,8 +14,6 @@ local SpawnFolder = MapFolder:WaitForChild("StartingPointHub")
 local GYM_POS = Vector3.new(-68, 0, 130)
 local SpawnPad = SpawnFolder:WaitForChild("StartingPointSpawn")
 local TouchSound = SpawnPad:WaitForChild("SpawnChimeSFX")
-local SpawnCrystal = SpawnFolder:WaitForChild("SpawnFloatingCrystal")
-local SpawnRing = SpawnFolder:WaitForChild("SpawnHaloRing")
 local DecorFolder = MapFolder:WaitForChild("SimulatorTrees")
 
 local Baseplate = MapFolder:WaitForChild("SimulatorBaseplate")
@@ -24,28 +21,6 @@ local RiverSound = Baseplate:FindFirstChildOfClass("Sound")
 if RiverSound then
 	RiverSound.Looped = true
 	RiverSound:Play()
-end
-
-local RiverFolder = MapFolder:WaitForChild("MountainFoothillRiver")
-local riverDirections = {
-	NorthRiver = Vector2.new(1, 0.25),
-	SouthRiver = Vector2.new(-1, -0.25),
-	EastRiver = Vector2.new(0.25, 1),
-	WestRiver = Vector2.new(-0.25, -1),
-}
-local FlowingTextures = {}
-for riverName, direction in pairs(riverDirections) do
-	local waterPart = RiverFolder:WaitForChild(riverName)
-	for _, texture in ipairs(waterPart:GetChildren()) do
-		if texture:IsA("Texture") then
-			local isFastLayer = texture.StudsPerTileU < 30
-			table.insert(FlowingTextures, {
-				tex = texture,
-				speedU = direction.X * (isFastLayer and 10 or 6),
-				speedV = direction.Y * (isFastLayer and 4 or 6),
-			})
-		end
-	end
 end
 
 -- 7. OYUNCU EKONOMİSİ (POWER & LOVE)
@@ -93,25 +68,8 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 Players.PlayerAdded:Connect(setupPlayer)
 
-------------------------------------------------------------------------
--- 8. NEHİR SU AKINTISI & SPAWN KRİSTALİ ANİMASYONU
-------------------------------------------------------------------------
-local crystalBasePos = SpawnCrystal.Position
-local animTime = 0
-
-RunService.Heartbeat:Connect(function(dt)
-	animTime += dt
-	for _, item in ipairs(FlowingTextures) do
-		local tex = item.tex
-		if tex and tex.Parent then
-			tex.OffsetStudsU = (tex.OffsetStudsU + item.speedU * dt) % tex.StudsPerTileU
-			tex.OffsetStudsV = (tex.OffsetStudsV + item.speedV * dt) % tex.StudsPerTileV
-		end
-	end
-	local floatOffset = Vector3.new(0, math.sin(animTime * 2.2) * 0.85, 0)
-	SpawnCrystal.CFrame = CFrame.new(crystalBasePos + floatOffset) * CFrame.Angles(0, animTime * 1.2, 0)
-	SpawnRing.CFrame = CFrame.new(crystalBasePos + floatOffset) * CFrame.Angles(math.sin(animTime * 1.5) * 0.35, animTime * 1.8, math.rad(90))
-end)
+-- River textures and spawn visuals are animated locally by the client; the
+-- server keeps only gameplay collision, prompts, sounds and rewards.
 
 local spawnDebounce = {}
 SpawnPad.Touched:Connect(function(hit)

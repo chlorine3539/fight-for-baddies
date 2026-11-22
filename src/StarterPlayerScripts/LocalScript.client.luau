@@ -19,6 +19,53 @@ local EvArenaReady = NetFolder:WaitForChild("ArenaReady")
 
 local isOnPullup = false
 
+-- World presentation effects are animated on each client against its own
+-- locally streamed copies; the server no longer sends per-frame visual state.
+task.spawn(function()
+	local mapFolder = workspace:WaitForChild("SimulatorBaseplateMap")
+	local spawnFolder = mapFolder:WaitForChild("StartingPointHub")
+	local crystal = spawnFolder:WaitForChild("SpawnFloatingCrystal")
+	local halo = spawnFolder:WaitForChild("SpawnHaloRing")
+	local riverFolder = mapFolder:WaitForChild("MountainFoothillRiver")
+	local directions = {
+		NorthRiver = Vector2.new(1, 0.25),
+		SouthRiver = Vector2.new(-1, -0.25),
+		EastRiver = Vector2.new(0.25, 1),
+		WestRiver = Vector2.new(-0.25, -1),
+	}
+	local flows = {}
+	for riverName, direction in pairs(directions) do
+		local water = riverFolder:WaitForChild(riverName)
+		for _, texture in ipairs(water:GetChildren()) do
+			if texture:IsA("Texture") then
+				local fast = texture.StudsPerTileU < 30
+				table.insert(flows, {
+					tex = texture,
+					speedU = direction.X * (fast and 10 or 6),
+					speedV = direction.Y * (fast and 4 or 6),
+				})
+			end
+		end
+	end
+
+	local basePos = crystal.Position
+	local elapsed = 0
+	RunService.RenderStepped:Connect(function(dt)
+		elapsed += dt
+		for _, flow in ipairs(flows) do
+			local tex = flow.tex
+			if tex.Parent then
+				tex.OffsetStudsU = (tex.OffsetStudsU + flow.speedU * dt) % tex.StudsPerTileU
+				tex.OffsetStudsV = (tex.OffsetStudsV + flow.speedV * dt) % tex.StudsPerTileV
+			end
+		end
+		local floatOffset = Vector3.new(0, math.sin(elapsed * 2.2) * 0.85, 0)
+		crystal.CFrame = CFrame.new(basePos + floatOffset) * CFrame.Angles(0, elapsed * 1.2, 0)
+		halo.CFrame = CFrame.new(basePos + floatOffset)
+			* CFrame.Angles(math.sin(elapsed * 1.5) * 0.35, elapsed * 1.8, math.rad(90))
+	end)
+end)
+
 -- Tool input events only fire in client-side LocalScripts. Watch the arena
 -- blade and forward only an attack request; the server resolves everything.
 local characterConnections = {}
@@ -279,43 +326,197 @@ LocalPlayer.CharacterRemoving:Connect(function()
 	stopPullupPose()
 end)
 
--- Diğer oyuncuların barfiks çektiğini gizleme + NPC'lere yaklaştıkça yazıyı büyütme
-RunService.RenderStepped:Connect(function()
-	local myChar = LocalPlayer.Character
-	local myHRP = myChar and myChar:FindFirstChild("HumanoidRootPart")
+-- Pull-up visibility is applied on attribute/descendant changes instead of
+-- scanning every character on every rendered frame. Original local values are
+-- restored when the state clears.
+local hiddenCharacters = {}
+local savedVisuals = {}
+local playerWatches = {}
 
-	for _, plr in ipairs(Players:GetPlayers()) do
-		if plr ~= LocalPlayer and plr.Character then
-			local hide = plr:GetAttribute("OnPullup") == true
-			for _, desc in ipairs(plr.Character:GetDescendants()) do
-				if desc:IsA("BasePart") or desc:IsA("Decal") then
-					if desc.Name ~= "HumanoidRootPart" then
-						desc.LocalTransparencyModifier = hide and 1 or 0
+local function restoreVisual(instance)
+	local saved = savedVisuals[instance]
+	if not saved then return end
+	if saved.transparency ~= nil then
+		instance.LocalTransparencyModifier = saved.transparency
+	end
+	if saved.enabled ~= nil then
+		instance.Enabled = saved.enabled
+	end
+	savedVisuals[instance] = nil
+end
+
+local function applyVisualHidden(instance)
+	if instance:IsA("BillboardGui") then
+		if savedVisuals[instance] == nil then
+			savedVisuals[instance] = { enabled = instance.Enabled }
+		end
+		instance.Enabled = false
+	elseif (instance:IsA("BasePart") or instance:IsA("Decal"))
+		and instance.Name ~= "HumanoidRootPart" then
+		if savedVisuals[instance] == nil then
+			savedVisuals[instance] = { transparency = instance.LocalTransparencyModifier }
+		end
+		instance.LocalTransparencyModifier = 1
+	end
+end
+
+local function setCharacterHidden(character, hide)
+	if not character then return end
+	if hiddenCharacters[character] == hide then return end
+	hiddenCharacters[character] = hide
+	for _, descendant in ipairs(character:GetDescendants()) do
+		if hide then
+			applyVisualHidden(descendant)
+		else
+			restoreVisual(descendant)
+		end
+	end
+end
+
+local function unbindWatchedCharacter(watch)
+	for _, connection in ipairs(watch.characterConnections) do
+		connection:Disconnect()
+	end
+	table.clear(watch.characterConnections)
+	if watch.character then
+		setCharacterHidden(watch.character, false)
+		hiddenCharacters[watch.character] = nil
+		watch.character = nil
+	end
+end
+
+local function bindWatchedCharacter(player, character)
+	local watch = playerWatches[player]
+	if not watch then return end
+	unbindWatchedCharacter(watch)
+	watch.character = character
+	setCharacterHidden(character, player:GetAttribute("OnPullup") == true)
+	table.insert(watch.characterConnections, player:GetAttributeChangedSignal("OnPullup"):Connect(function()
+		setCharacterHidden(character, player:GetAttribute("OnPullup") == true)
+	end))
+	table.insert(watch.characterConnections, character.DescendantAdded:Connect(function(descendant)
+		if hiddenCharacters[character] then
+			applyVisualHidden(descendant)
+		end
+	end))
+	table.insert(watch.characterConnections, character.AncestryChanged:Connect(function(_, parent)
+		if parent == nil then
+			unbindWatchedCharacter(watch)
+		end
+	end))
+	table.insert(watch.characterConnections, character.DescendantRemoving:Connect(function(descendant)
+		savedVisuals[descendant] = nil
+	end))
+end
+
+local function stopWatchingPlayer(player)
+	local watch = playerWatches[player]
+	if not watch then return end
+	for _, connection in ipairs(watch.playerConnections) do
+		connection:Disconnect()
+	end
+	table.clear(watch.playerConnections)
+	unbindWatchedCharacter(watch)
+	playerWatches[player] = nil
+end
+
+local function watchPlayer(player)
+	if player == LocalPlayer then return end
+	stopWatchingPlayer(player)
+	local watch = { character = nil, playerConnections = {}, characterConnections = {} }
+	playerWatches[player] = watch
+	table.insert(watch.playerConnections, player.CharacterAdded:Connect(function(character)
+		bindWatchedCharacter(player, character)
+	end))
+	if player.Character then
+		bindWatchedCharacter(player, player.Character)
+	end
+end
+
+for _, player in ipairs(Players:GetPlayers()) do
+	watchPlayer(player)
+end
+Players.PlayerAdded:Connect(watchPlayer)
+Players.PlayerRemoving:Connect(stopWatchingPlayer)
+
+-- Rarity labels are registered from folder events and refreshed at ~8 Hz.
+task.spawn(function()
+	local mapFolder = workspace:WaitForChild("SimulatorBaseplateMap")
+	local systems = mapFolder:WaitForChild("SimulatorSystems")
+	local npcFolder = systems:WaitForChild("RoamingNPCs")
+	local tags = {}
+	local tagConnections = {}
+	local tagWatchConnections = {}
+
+	local function registerNPC(npc)
+		if tags[npc] then return end
+		local head = npc:FindFirstChild("Head")
+		local tag = head and head:FindFirstChild("RarityTag")
+		if not tag then
+			if not tagWatchConnections[npc] then
+				tagWatchConnections[npc] = npc.DescendantAdded:Connect(function(descendant)
+					if descendant.Name == "RarityTag" and descendant:IsA("BillboardGui") then
+						tagWatchConnections[npc]:Disconnect()
+						tagWatchConnections[npc] = nil
+						registerNPC(npc)
 					end
-				elseif desc:IsA("BillboardGui") then
-					desc.Enabled = not hide
-				end
+				end)
 			end
+			return
 		end
+		tags[npc] = tag
+		-- Streaming can temporarily unparent the head/tag without removing the
+		-- NPC model; re-register when the tag comes back.
+		tagConnections[npc] = tag.AncestryChanged:Connect(function(_, parent)
+			if parent then
+				tags[npc] = tag
+			else
+				tags[npc] = nil
+			end
+		end)
 	end
 
-	if myHRP then
-		local mapFolder = workspace:FindFirstChild("SimulatorBaseplateMap")
-		local sysFolder = mapFolder and mapFolder:FindFirstChild("SimulatorSystems")
-		local npcFolder = sysFolder and sysFolder:FindFirstChild("RoamingNPCs")
-		if npcFolder then
-			for _, npc in ipairs(npcFolder:GetChildren()) do
-				local head = npc:FindFirstChild("Head")
-				local tag = head and head:FindFirstChild("RarityTag")
-				if head and tag then
-					local dist = (head.Position - myHRP.Position).Magnitude
-					local alpha = math.clamp(1 - ((dist - 5) / 35), 0, 1)
-					local scale = 0.8 + alpha * 0.65
-					tag.Size = UDim2.new(0, math.floor(110 * scale), 0, math.floor(28 * scale))
+	local function unregisterNPC(npc)
+		if tagConnections[npc] then
+			tagConnections[npc]:Disconnect()
+			tagConnections[npc] = nil
+		end
+		if tagWatchConnections[npc] then
+			tagWatchConnections[npc]:Disconnect()
+			tagWatchConnections[npc] = nil
+		end
+		tags[npc] = nil
+	end
+
+	for _, npc in ipairs(npcFolder:GetChildren()) do
+		registerNPC(npc)
+	end
+	npcFolder.ChildAdded:Connect(registerNPC)
+	npcFolder.ChildRemoved:Connect(unregisterNPC)
+
+	local lastUpdate = 0
+	RunService.RenderStepped:Connect(function()
+		local now = os.clock()
+		if now - lastUpdate < 0.12 then return end
+		lastUpdate = now
+
+		local character = LocalPlayer.Character
+		local hrp = character and character:FindFirstChild("HumanoidRootPart")
+		if not hrp then return end
+		local myPosition = hrp.Position
+		for _, tag in pairs(tags) do
+			local head = tag.Parent
+			if head and head:IsA("BasePart") then
+				local dist = (head.Position - myPosition).Magnitude
+				local alpha = math.clamp(1 - ((dist - 5) / 35), 0, 1)
+				local scale = 0.8 + alpha * 0.65
+				local width = math.floor(110 * scale)
+				if tag.Size.X.Offset ~= width then
+					tag.Size = UDim2.new(0, width, 0, math.floor(28 * scale))
 				end
 			end
 		end
-	end
+	end)
 end)
 
 local ScreenGui = Instance.new("ScreenGui", LocalPlayer:WaitForChild("PlayerGui"))
