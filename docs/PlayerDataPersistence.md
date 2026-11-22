@@ -14,7 +14,9 @@ Power and Love are saved with a versioned, server-only schema. The client never 
 
 On join, leaderstats are created with the default values but the player is immediately marked `DataLoaded = false` and `DataRestricted = true`. A missing record becomes the default schema. A present record is validated before being applied. Load errors are retried four times with bounded backoff (0.5s, 1s, 2s).
 
-If loading fails or the stored record is invalid, the defaults remain visible but the player stays restricted and receives a Turkish notification. Pull-up, NPC dialogue, arena, and secret-toilet rewards are ignored while restricted. No save is attempted for that player, so defaults cannot overwrite an existing record.
+If loading fails or the stored record is invalid, the defaults remain visible. On a published server, the player stays restricted and receives a Turkish notification; pull-up, NPC dialogue, arena, and secret-toilet rewards are ignored. No save is attempted for that player, so defaults cannot overwrite an existing record.
+
+In Roblox Studio only, unavailable DataStore access falls back to session-only play: `DataLoaded = false`, `DataPersistent = false`, and `DataRestricted = false`. This lets the gameplay checklist run without DataStore API access. Session-only progress is never saved because `state.loaded` remains false; published servers never use this fallback and keep the strict restricted-state policy.
 
 ## Save behavior
 
@@ -23,6 +25,7 @@ If loading fails or the stored record is invalid, the defaults remain visible bu
 ## Limitations and recovery
 
 - The one-time secret-toilet reward is still session-only; only Power and Love persist.
+- Studio session-only play intentionally does not persist Power or Love.
 - Rejoining is the recovery action for a transient load failure. An invalid stored record is left untouched and needs manual correction in the isolated test place.
 - This phase assumes a single server per experience and does not implement cross-server migration.
 - Studio round-trip and failure-injection tests are still unverified; see [the regression checklist](StudioRegressionChecklist.md).
