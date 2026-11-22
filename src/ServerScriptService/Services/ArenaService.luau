@@ -198,17 +198,22 @@ function ArenaService.StartDuel(player, rarityInfo)
 
 	local slotCenter = ARENA_CENTER + Vector3.new((slot - 1) * ARENA_SLOT_SPACING, 0, 0)
 	local returnCF = hrp.CFrame
+	local ownsArenaShell = slot ~= 1
 	local duel, finishDuel
 	local arenaShell, bossNPC, bossHum, bossHRP, playerSword, bossSword
 
 	local ok, err = pcall(function()
 		player:SetAttribute("InArena", true)
 		player:SetAttribute("DuelPending", false)
-		if slot ~= 1 then
+		if ownsArenaShell then
 			arenaShell = Instance.new("Model", ArenaFolder)
 			arenaShell.Name = "DuelArena_" .. slot
 			buildArenaShell(slotCenter, arenaShell, slot)
+		else
+			arenaShell = ArenaFolder:WaitForChild("DuelArena_1")
 		end
+		arenaShell.ModelStreamingMode = Enum.ModelStreamingMode.PersistentPerPlayer
+		arenaShell:AddPersistentPlayer(player)
 		hrp.CFrame = CFrame.new(slotCenter + Vector3.new(0, 3, -24), slotCenter + Vector3.new(0, 3, 24))
 
 		local pPower = math.max(10, ls.Power.Value)
@@ -236,6 +241,7 @@ function ArenaService.StartDuel(player, rarityInfo)
 			slot = slot,
 			ready = false,
 			arenaShell = arenaShell,
+			ownsArenaShell = ownsArenaShell,
 			opponent = bossNPC,
 			playerSword = playerSword,
 			bossSword = bossSword,
@@ -269,7 +275,14 @@ function ArenaService.StartDuel(player, rarityInfo)
 				end
 				duel.opponent:Destroy()
 			end
-			if duel.arenaShell and duel.arenaShell.Parent then duel.arenaShell:Destroy() end
+			if duel.arenaShell and duel.arenaShell.Parent then
+				pcall(function()
+					duel.arenaShell:RemovePersistentPlayer(player)
+				end)
+				if duel.ownsArenaShell then
+					duel.arenaShell:Destroy()
+				end
+			end
 
 			player:SetAttribute("InArena", false)
 			player:SetAttribute("DuelPending", false)
@@ -311,7 +324,14 @@ function ArenaService.StartDuel(player, rarityInfo)
 		if reservedArenaSlots[slot] == player then reservedArenaSlots[slot] = nil end
 		if playerSword and playerSword.Parent then playerSword:Destroy() end
 		if bossNPC and bossNPC.Parent then bossNPC:Destroy() end
-		if arenaShell and arenaShell.Parent then arenaShell:Destroy() end
+		if arenaShell and arenaShell.Parent then
+			pcall(function()
+				arenaShell:RemovePersistentPlayer(player)
+			end)
+			if ownsArenaShell then
+				arenaShell:Destroy()
+			end
+		end
 		player:SetAttribute("InArena", false)
 		player:SetAttribute("DuelPending", false)
 		if player.Parent and player.Character == char and hrp.Parent then hrp.CFrame = returnCF end
@@ -374,9 +394,12 @@ function ArenaService.Start(context)
 	buildPlainRig = context.NPCService.BuildPlainRig
 	spawnBurstEffect = context.NPCService.SpawnBurstEffect
 
-	-- Slot 1 uses the original arena shell; extra concurrent duels get their own
-	-- shell created on demand and destroyed by the matching duel cleanup.
-	buildArenaShell(ARENA_CENTER, ArenaFolder, 1)
+	-- Every duel slot has its own model so it can be made persistent for the
+	-- participating player and streamed in before combat starts. Slot 1 is
+	-- reused; extra slots are created on demand and destroyed on cleanup.
+	local slotOneShell = Instance.new("Model", ArenaFolder)
+	slotOneShell.Name = "DuelArena_1"
+	buildArenaShell(ARENA_CENTER, slotOneShell, 1)
 
 	EvArenaReady.OnServerEvent:Connect(function(player, slot)
 		local duel = activeDuels[player]
