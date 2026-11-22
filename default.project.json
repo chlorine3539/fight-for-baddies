@@ -9,20 +9,20 @@
           0.5960784554481506,
           0.6274510025978088
         ],
-        "Brightness": 2.0,
+        "Brightness": 2,
         "ColorShift_Top": [
-          1.0,
+          1,
           0.9803921580314636,
           0.9411764740943909
         ],
-        "EnvironmentDiffuseScale": 1.0,
-        "EnvironmentSpecularScale": 1.0,
+        "EnvironmentDiffuseScale": 1,
+        "EnvironmentSpecularScale": 1,
         "FogColor": [
           0.7529412508010864,
           0.7529412508010864,
           0.7529412508010864
         ],
-        "GeographicLatitude": 35.0,
+        "GeographicLatitude": 35,
         "GlobalShadows": true,
         "LightAttenuationMode": {
           "Enum": 0
@@ -124,7 +124,7 @@
       },
       "$properties": {
         "AvatarJointUpgrade": "Enabled",
-        "CameraMaxZoomDistance": 128.0,
+        "CameraMaxZoomDistance": 128,
         "CharacterBreakJointsOnDeath": false,
         "CharacterUseJumpPower": false,
         "SerializedOverrides": {
@@ -186,25 +186,25 @@
         "WorldPivotData": {
           "OptionalCFrame": {
             "position": [
-              0.0,
-              0.0,
-              0.0
+              0,
+              0,
+              0
             ],
             "orientation": [
               [
-                1.0,
-                0.0,
-                0.0
+                1,
+                0,
+                0
               ],
               [
-                0.0,
-                1.0,
-                0.0
+                0,
+                1,
+                0
               ],
               [
-                0.0,
-                0.0,
-                1.0
+                0,
+                0,
+                1
               ]
             ]
           }
