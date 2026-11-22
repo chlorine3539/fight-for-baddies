@@ -479,7 +479,7 @@ ArenaFolder.Name = "HiddenDuelArena"
 -- damage, hit windows and cooldowns all stay on this server.
 local ARENA_RADIUS = 50
 local HITBOX_FORWARD = 4
-local HITBOX_SIZE = Vector3.new(6, 5, 10)
+local HITBOX_SIZE = Vector3.new(6, 5, 12)
 local MAX_MELEE_DISTANCE = 9
 local PLAYER_HIT_WINDOW = 0.26
 local PLAYER_SWING_COOLDOWN = 0.5
@@ -893,7 +893,7 @@ EvArenaAttack.OnServerEvent:Connect(function(player)
 
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	if not isInsideDuelArena(hrp, duel.center) then return end
-	if humanoid:FindFirstChildOfClass("Tool") ~= duel.playerSword then return end
+	if character:FindFirstChildOfClass("Tool") ~= duel.playerSword then return end
 	if duel.playerSword.Parent ~= character then return end
 
 	performMeleeSwing(duel, duel.playerSwing, duel.playerSword, character, duel.opponent,
