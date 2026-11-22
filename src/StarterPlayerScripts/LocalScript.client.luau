@@ -15,6 +15,7 @@ local EvPullupAction = NetFolder:WaitForChild("PullupAction")
 local EvTogglePullup = NetFolder:WaitForChild("TogglePullup")
 local EvNotify = NetFolder:WaitForChild("Notify")
 local EvArenaAttack = NetFolder:WaitForChild("ArenaAttack")
+local EvArenaReady = NetFolder:WaitForChild("ArenaReady")
 
 local isOnPullup = false
 
@@ -627,6 +628,21 @@ EvNotify.OnClientEvent:Connect(function(kind, message)
 		showBanner(message, Color3.fromRGB(95, 255, 145), 2.5)
 	elseif kind == "ArenaLose" then
 		showBanner(message, Color3.fromRGB(255, 85, 85), 2.5)
+	elseif kind == "ArenaReadyRequest" then
+		-- Arena shells are server-created; wait for the locally streamed floor
+		-- before telling the server combat can start.
+		task.spawn(function()
+			local slot = message
+			local map = workspace:WaitForChild("SimulatorBaseplateMap", 8)
+			local systems = map and map:WaitForChild("SimulatorSystems", 8)
+			local arenaRoot = systems and systems:WaitForChild("HiddenDuelArena", 8)
+			local container = arenaRoot and (slot == 1 and arenaRoot
+				or arenaRoot:WaitForChild("DuelArena_" .. tostring(slot), 8))
+			local floor = container and container:WaitForChild("ArenaFloor_" .. tostring(slot), 8)
+			if floor then
+				EvArenaReady:FireServer(slot)
+			end
+		end)
 	else
 		showBanner(message, Color3.fromRGB(255, 225, 115), 2.2)
 	end
