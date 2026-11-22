@@ -21,7 +21,6 @@ rokit install
 src/
 ├── Lighting/
 ├── ReplicatedStorage/
-│   └── WorldBuilder.luau
 ├── ServerScriptService/
 │   └── Script_1.server.luau
 ├── StarterGui/
@@ -29,42 +28,27 @@ src/
 │   └── LocalScript.client.luau
 ├── TextChatService/
 └── Workspace/
+    └── SimulatorBaseplateMap/
 ```
 
-- `ReplicatedStorage/WorldBuilder.luau` creates the visible map and lighting. It is shared by edit mode and server runtime.
+- `Workspace/SimulatorBaseplateMap` contains the saved map, so it is visible in Studio edit mode and is used directly at runtime.
 - The server script owns player stats, RemoteEvents, the pull-up station, NPC interactions, and arena duels.
 - The client script owns the HUD, input, dialogue UI, and visual feedback. Character movement and pull-up rewards are server-authoritative.
 - Duplicate server implementations and embedded client-source injection have been removed.
 
-## Show the map while editing in Studio
+## Map and Studio editing
 
-The map is generated from code. To create a saved copy that is visible without pressing Test:
+The visible map is stored in `src/Workspace/SimulatorBaseplateMap`. It loads in Studio edit mode and is used directly by the server when a play session starts; no Command Bar generation step is required.
 
-1. Start `rojo serve` from the repository root and connect the Rojo plugin in Studio so `ReplicatedStorage.WorldBuilder` is synced.
-2. Disconnect the Rojo plugin and stop `rojo serve` before generating the map. This prevents live sync from treating the newly generated Workspace objects as untracked instances.
-3. In Studio, open **View → Command Bar** and run:
+The runtime script expects these map instances to keep their current names:
 
-   ```lua
-   require(game:GetService("ReplicatedStorage"):WaitForChild("WorldBuilder")).Build()
-   ```
+- `StartingPointHub/StartingPointSpawn`
+- `StartingPointHub/SpawnFloatingCrystal`
+- `StartingPointHub/SpawnHaloRing`
+- `MountainFoothillRiver` and its four river parts
+- `SimulatorTrees`
 
-4. Save a place snapshot as `place.rbxl` in the repository root.
-5. Export the generated Workspace objects into the Rojo project:
-
-   ```sh
-   rojo syncback . --input place.rbxl --dry-run --list
-   ```
-
-   Review the preview, then apply it:
-
-   ```sh
-   rojo syncback . --input place.rbxl -y
-   git status
-   ```
-
-6. Restart `rojo serve` and reconnect the plugin. The generated map is now part of `src/Workspace` and remains visible in edit mode.
-
-The server calls the same builder when a play session starts. It replaces the saved `SimulatorBaseplateMap` with a fresh copy, so the edit-mode map is not duplicated during testing.
+Edit the map in Studio, save a place snapshot, then use the syncback workflow below to update the Rojo source. Review the syncback preview before applying it.
 
 ## Live development
 
