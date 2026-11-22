@@ -236,7 +236,7 @@ function PullupController:_applyPullupPoseFrame()
 			-- The Animator owns the base Transform; layer only the procedural
 			-- offset from identity so it cannot bake in an arbitrary idle pose
 			-- or accumulate across frames.
-			joint.Transform = CFrame.identity:Lerp(constraintOffsetForPose(entry.config, isUp), alpha)
+			joint.Transform = CFrame.new():Lerp(constraintOffsetForPose(entry.config, isUp), alpha)
 		end
 	end
 end

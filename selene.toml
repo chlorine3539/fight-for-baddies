@@ -1,0 +1,9 @@
+# Selene is used for Luau parsing and linting. The baseline predates strict
+# styling, so these noisy style lints stay disabled instead of forcing an
+# unrelated whole-repository formatting diff.
+std = "roblox"
+
+[lints]
+deprecated = "allow"
+multiple_statements = "allow"
+roblox_manual_fromscale_or_fromoffset = "allow"

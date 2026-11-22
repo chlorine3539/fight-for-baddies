@@ -4,6 +4,8 @@
 -- ========================================================================
 local TweenService = game:GetService("TweenService")
 
+local GameRules = require(script.Parent.Parent.Logic.GameRules)
+
 local PullupService = {}
 
 local pullupCooldowns = {}
@@ -151,13 +153,11 @@ function PullupService.Start(context)
 		end
 
 		local now = os.clock()
-		if pullupCooldowns[player] and now - pullupCooldowns[player] < 0.26 then return end
+		if not GameRules.canAct(now, pullupCooldowns[player], 0.26) then return end
 		pullupCooldowns[player] = now
 
-		local baseGain = 1
-		local loveBonus = love.Value * 0.01
-		local totalGain = math.max(1, math.floor((baseGain + loveBonus) * 100) / 100)
-		power.Value = math.floor((power.Value + totalGain) * 100) / 100
+		local totalGain = GameRules.pullupPowerGain(love.Value)
+		power.Value = GameRules.roundPower(power.Value + totalGain)
 
 		local upCF = CFrame.new(GYM_POS + Vector3.new(0, 9.4, 0.15)) * CFrame.Angles(math.rad(-8), 0, 0)
 		local downCF = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)

@@ -1,0 +1,46 @@
+name: Validate
+
+# Build and static checks only. This workflow never uploads or publishes a
+# Roblox place and does not change live experience settings.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rokit
+        env:
+          GITHUB_PAT: ${{ github.token }}
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash -s -- 1.2.0
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+
+      - name: Install pinned tools
+        env:
+          GITHUB_PAT: ${{ github.token }}
+        run: rokit install --no-trust-check
+
+      - name: Show tool versions
+        run: |
+          rojo --version
+          selene --version
+          lune --version
+
+      - name: Lint Luau
+        run: selene src tests
+
+      - name: Run pure logic checks
+        run: lune run tests/GameRules.test.luau
+
+      - name: Build place
+        run: rojo build -o build/fight-for-baddies.rbxlx

@@ -5,6 +5,8 @@
 -- ========================================================================
 local Debris = game:GetService("Debris")
 
+local GameRules = require(script.Parent.Parent.Logic.GameRules)
+
 local NPCService = {}
 
 -- D) 6 NADİRLİKLİ NPC SİSTEMİ
@@ -42,15 +44,7 @@ local modFolder
 local arenaService
 
 local function rollRarity()
-	local r = math.random() * 100
-	local acc = 0
-	for _, info in ipairs(RARITIES) do
-		acc += info.Chance
-		if r <= acc then
-			return info
-		end
-	end
-	return RARITIES[1]
+	return GameRules.rollRarity(math.random() * 100, RARITIES)
 end
 
 local function SpawnBurstEffect(pos, color)
@@ -239,7 +233,7 @@ function NPCService.Start(context)
 	-- F) DİYALOG SEÇENEKLERİ VE NPC DOĞUM YÖNETİMİ
 	EvDialogueChoice.OnServerEvent:Connect(function(player, npcModel, choiceIndex)
 		if typeof(npcModel) ~= "Instance" or not npcModel:IsA("Model") then return end
-		if typeof(choiceIndex) ~= "number" or choiceIndex % 1 ~= 0 or choiceIndex < 1 or choiceIndex > 4 then return end
+		if not GameRules.isValidDialogueChoice(choiceIndex) then return end
 		if player:GetAttribute("InArena") or player:GetAttribute("OnPullup") or player:GetAttribute("DuelPending") then return end
 
 		local pending = pendingNPCInteractions[player]
@@ -264,27 +258,25 @@ function NPCService.Start(context)
 			return
 		end
 
+		local deltaLove = GameRules.loveDelta(choiceIndex, power.Value)
+		if not deltaLove then return end
+
 		-- Consume the server-issued interaction before changing any player state.
 		pendingNPCInteractions[player] = nil
 		player:SetAttribute("DuelPending", true)
 
-		local deltaLove = 0
 		if choiceIndex == 1 then
-			deltaLove = -math.max(1, math.floor(power.Value / 10))
-			love.Value = math.max(0, love.Value + deltaLove)
+			love.Value = GameRules.clampLove(love.Value, deltaLove)
 			EvNotify:FireClient(player, "LoveLoss", "Yanlış cevap! (" .. deltaLove .. " Love)")
-		elseif choiceIndex == 2 then
-			deltaLove = math.max(1, math.floor(power.Value / 10))
-			love.Value += deltaLove
-			EvNotify:FireClient(player, "LoveGain", "Güzel sohbet! (+" .. deltaLove .. " Love)")
-		elseif choiceIndex == 3 then
-			deltaLove = math.max(1, math.floor(power.Value / 8))
-			love.Value += deltaLove
-			EvNotify:FireClient(player, "LoveGain", "Etkileyici sözler! (+" .. deltaLove .. " Love)")
 		else
-			deltaLove = math.max(1, math.floor(power.Value / 5))
 			love.Value += deltaLove
-			EvNotify:FireClient(player, "LoveGain", "Kalbinden vurdun! (+" .. deltaLove .. " Love)")
+			if choiceIndex == 2 then
+				EvNotify:FireClient(player, "LoveGain", "Güzel sohbet! (+" .. deltaLove .. " Love)")
+			elseif choiceIndex == 3 then
+				EvNotify:FireClient(player, "LoveGain", "Etkileyici sözler! (+" .. deltaLove .. " Love)")
+			else
+				EvNotify:FireClient(player, "LoveGain", "Kalbinden vurdun! (+" .. deltaLove .. " Love)")
+			end
 		end
 
 		task.delay(0.6, function()

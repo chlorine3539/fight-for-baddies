@@ -6,6 +6,8 @@
 local Workspace = game:GetService("Workspace")
 local Debris = game:GetService("Debris")
 
+local GameRules = require(script.Parent.Parent.Logic.GameRules)
+
 local ArenaService = {}
 
 -- C) GİZLİ YÜKSEK ARENA (HARİTADAN GÖRÜNMEZ)
@@ -88,7 +90,7 @@ local function newSwingState()
 end
 
 local function performMeleeSwing(duel, swingState, sword, attackerModel, targetModel, targetHumanoid, damage, hitWindow, cooldown)
-	if not duel.active or os.clock() < swingState.readyAt then return false end
+	if not duel.active or not GameRules.isReady(os.clock(), swingState.readyAt) then return false end
 
 	swingState.readyAt = os.clock() + cooldown
 	swingState.token += 1
@@ -209,11 +211,10 @@ function ArenaService.StartDuel(player, rarityInfo)
 		hrp.CFrame = CFrame.new(slotCenter + Vector3.new(0, 3, -24), slotCenter + Vector3.new(0, 3, 24))
 
 		local pPower = math.max(10, ls.Power.Value)
-		local rarityMult = { Common = 0.65, Rare = 0.75, Epic = 0.82, Mythic = 0.88, Legendary = 0.92, Godly = 0.95 }
-		local mult = rarityMult[rarityInfo.Name] or 0.75
-		local bossMaxHP = math.floor(100 + (rarityInfo.ReqPower * 0.05) + (pPower * 0.25))
-		local playerSwordDmg = math.max(25, math.floor(bossMaxHP / 4))
-		local bossSwordDmg = math.max(8, math.floor(18 * mult))
+		local mult = GameRules.rarityMultiplier(rarityInfo.Name)
+		local bossMaxHP = GameRules.bossMaxHealth(rarityInfo.ReqPower, pPower)
+		local playerSwordDmg = GameRules.playerSwordDamage(bossMaxHP)
+		local bossSwordDmg = GameRules.bossSwordDamage(mult)
 
 		local bossPos = slotCenter + Vector3.new(0, 3, 24)
 		bossNPC, bossHum, bossHRP = buildPlainRig("ArenaRival_" .. player.Name, bossPos, rarityInfo, true)
@@ -244,7 +245,7 @@ function ArenaService.StartDuel(player, rarityInfo)
 			connections = {},
 			active = true,
 			startMessage = rarityInfo.Name .. " rakiple düello başladı! Kılıcınla saldır!",
-			bonusLove = math.max(5, math.floor(pPower * 0.12)),
+			bonusLove = GameRules.arenaBonusLove(pPower),
 		}
 		activeDuels[player] = duel
 
