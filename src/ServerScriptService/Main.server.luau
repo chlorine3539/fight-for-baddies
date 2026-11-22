@@ -6,7 +6,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Services = script:WaitForChild("Services")
+local Services = script.Parent:WaitForChild("Services")
 local WorldService = require(Services:WaitForChild("WorldService"))
 local PlayerDataService = require(Services:WaitForChild("PlayerDataService"))
 local SecretService = require(Services:WaitForChild("SecretService"))
