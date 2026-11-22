@@ -666,6 +666,15 @@ local function applyPullupLimbPose(character, isHanging, isPulledUp)
 		end
 	end
 
+	local function findMotor6D(jointName)
+		for _, descendant in ipairs(character:GetDescendants()) do
+			if descendant:IsA("Motor6D") and descendant.Name == jointName then
+				return descendant
+			end
+		end
+		return nil
+	end
+
 	local torso = character:FindFirstChild("Torso")
 	if torso then
 		local rs = torso:FindFirstChild("Right Shoulder")
@@ -692,14 +701,11 @@ local function applyPullupLimbPose(character, isHanging, isPulledUp)
 			end
 		end
 	else
-		local rUA = character:FindFirstChild("RightUpperArm")
-		local lUA = character:FindFirstChild("LeftUpperArm")
-		local rLA = character:FindFirstChild("RightLowerArm")
-		local lLA = character:FindFirstChild("LeftLowerArm")
-		local rs = rUA and rUA:FindFirstChild("RightShoulder")
-		local ls = lUA and lUA:FindFirstChild("LeftShoulder")
-		local re = rLA and rLA:FindFirstChild("RightElbow")
-		local le = lLA and lLA:FindFirstChild("LeftElbow")
+		-- R15 Motor6Ds are attached to the torso parts, not the limb parts.
+		local rs = findMotor6D("RightShoulder")
+		local ls = findMotor6D("LeftShoulder")
+		local re = findMotor6D("RightElbow")
+		local le = findMotor6D("LeftElbow")
 		if rs and ls then
 			if not savedMotorC0[character] then
 				savedMotorC0[character] = {
@@ -1317,4 +1323,9 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	pullupCooldowns[player] = nil
 	pendingNPCInteractions[player] = nil
+	local character = player.Character
+	if character then
+		savedHumanoidMovement[character] = nil
+		savedMotorC0[character] = nil
+	end
 end)
