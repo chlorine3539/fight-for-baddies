@@ -89,6 +89,6 @@ rojo build -o build/fight-for-baddies.rbxlx
 
 The same static checks run in CI for pull requests and pushes to `main`. CI never publishes a place or changes a live experience.
 
-Gameplay changes also need a Studio multiplayer pass. Use the [Studio regression checklist](docs/StudioRegressionChecklist.md) and report each scenario as pass, fail, or unverified in the pull request description. Player-data behavior and its operational limits are documented in [Player data persistence](docs/PlayerDataPersistence.md).
+Gameplay changes also need a Studio multiplayer pass. Use the [Studio regression checklist](docs/StudioRegressionChecklist.md) and report each scenario as pass, fail, or unverified in the pull request description. Player-data behavior and its operational limits are documented in [Player data persistence](docs/PlayerDataPersistence.md); the conditional NPC pathfinding decision is recorded in [NPC pathfinding assessment](docs/NpcPathfindingAssessment.md).
 
 Commit and push your branch, then open a pull request against `main`. Keep generated snapshots and build output out of commits.

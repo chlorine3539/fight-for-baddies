@@ -191,7 +191,9 @@ local function spawnSingleRoamingNPC()
 		end
 	end)
 
+	local movementStopped = false
 	npc.Destroying:Connect(function()
+		movementStopped = true
 		activeNPCData[npc] = nil
 		for player, pending in pairs(pendingNPCInteractions) do
 			if pending.npc == npc then
@@ -201,7 +203,7 @@ local function spawnSingleRoamingNPC()
 	end)
 
 	task.spawn(function()
-		while npc.Parent and hum.Health > 0 do
+		while not movementStopped and npc.Parent and hum.Health > 0 do
 			local wx = math.clamp(hrp.Position.X + math.random(-35, 35), -145, 145)
 			local wz = math.clamp(hrp.Position.Z + math.random(-35, 35), -145, 105)
 			hum:MoveTo(Vector3.new(wx, 3.5, wz))
@@ -210,7 +212,7 @@ local function spawnSingleRoamingNPC()
 	end)
 
 	task.delay(120, function()
-		if npc and npc.Parent then
+		if not movementStopped and npc and npc.Parent then
 			SpawnBurstEffect(hrp.Position, rarityInfo.Color)
 			activeNPCData[npc] = nil
 			npc:Destroy()
