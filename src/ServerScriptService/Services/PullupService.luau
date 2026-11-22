@@ -136,6 +136,7 @@ function PullupService.Start(context)
 	end)
 
 	EvPullupAction.OnServerEvent:Connect(function(player)
+		if player:GetAttribute("DataRestricted") then return end
 		if player:GetAttribute("OnPullup") ~= true or player:GetAttribute("InArena") then return end
 
 		local character = player.Character

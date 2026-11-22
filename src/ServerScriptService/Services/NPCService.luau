@@ -165,6 +165,7 @@ local function spawnSingleRoamingNPC()
 	prompt.RequiresLineOfSight = false
 
 	prompt.Triggered:Connect(function(player)
+		if player:GetAttribute("DataRestricted") then return end
 		if player:GetAttribute("InArena") or player:GetAttribute("OnPullup") or player:GetAttribute("DuelPending") then return end
 		local character = player.Character
 		local playerHRP = character and character:FindFirstChild("HumanoidRootPart")
@@ -232,6 +233,7 @@ function NPCService.Start(context)
 
 	-- F) DİYALOG SEÇENEKLERİ VE NPC DOĞUM YÖNETİMİ
 	EvDialogueChoice.OnServerEvent:Connect(function(player, npcModel, choiceIndex)
+		if player:GetAttribute("DataRestricted") then return end
 		if typeof(npcModel) ~= "Instance" or not npcModel:IsA("Model") then return end
 		if not GameRules.isValidDialogueChoice(choiceIndex) then return end
 		if player:GetAttribute("InArena") or player:GetAttribute("OnPullup") or player:GetAttribute("DuelPending") then return end

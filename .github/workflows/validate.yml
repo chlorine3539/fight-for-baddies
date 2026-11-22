@@ -40,7 +40,9 @@ jobs:
         run: selene src tests
 
       - name: Run pure logic checks
-        run: lune run tests/GameRules.test.luau
+        run: |
+          lune run tests/GameRules.test.luau
+          lune run tests/PlayerDataSchema.test.luau
 
       - name: Build place
         run: rojo build -o build/fight-for-baddies.rbxlx

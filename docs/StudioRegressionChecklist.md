@@ -1,6 +1,6 @@
 # Studio multiplayer regression checklist
 
-Run in a local Roblox Studio test place through Rojo. Do not publish or upload the place, change live experience settings, or use production DataStores. Record each row as **pass**, **fail**, or **unverified** in the PR description, with a short note for failures.
+Run in a local Roblox Studio test place through Rojo. Do not publish or upload the place, change live experience settings, or use production DataStores. Persistence currently uses the isolated `FightForBaddies_PlayerData_Test` store; do not point it at a production store for these checks. Record each row as **pass**, **fail**, or **unverified** in the PR description, with a short note for failures.
 
 | Scenario | Steps | Expected result |
 | --- | --- | --- |
@@ -13,6 +13,8 @@ Run in a local Roblox Studio test place through Rojo. Do not publish or upload t
 | Death/respawn | Die during a duel and again during a pull-up session. | Duel state, prompts, poses, movement state, and reserved slots are released; the respawned player cannot act on stale arena state. |
 | Timeout | Begin a duel but do not send the arena-ready confirmation. | The duel ends after the server timeout with no rewards, and its slot is released for the next player. |
 | Player departure | Leave the game during a duel, dialogue prompt, or pull-up session. | Cleanup runs without errors, opponent/arena instances are removed, and the next player can start a fresh duel. |
+| Persistence round trip | In an isolated test place, earn Power/Love, leave, rejoin, and inspect leaderstats. | The same values return, starting values remain 0/10 for a new key, and no rewards are applied before load completes. |
+| Persistence failure | Force load/save failures in the test place with a valid stored record. | Retries are bounded, rewards stay blocked while restricted, and a failed save never replaces valid stored data with session defaults. |
 | Saved map integrity | Open the place after a Rojo build and inspect the Workspace. | `SimulatorBaseplateMap` and its original assets remain present; no runtime-generated replacement map appears. |
 
 Static checks cannot replace this list. A change that touches gameplay, remotes, cleanup, or the map should be re-tested in Studio before being marked verified.

@@ -182,6 +182,7 @@ end
 
 -- E) ARENA DÜELLO BAŞLATICI
 function ArenaService.StartDuel(player, rarityInfo)
+	if player:GetAttribute("DataRestricted") then return false end
 	if player:GetAttribute("InArena") or player:GetAttribute("DuelPending") ~= true then return false end
 	if activeDuels[player] then return false end
 	local char = player.Character

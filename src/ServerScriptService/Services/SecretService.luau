@@ -59,6 +59,7 @@ function SecretService.Start(context)
 
 	local toiletRewards = {}
 	FlushPrompt.Triggered:Connect(function(plr)
+		if plr:GetAttribute("DataRestricted") then return end
 		local ls = plr:FindFirstChild("leaderstats")
 		local love = ls and ls:FindFirstChild("Love")
 		if not love then return end
