@@ -87,8 +87,7 @@ function CombatController:HandleNotify(kind, message)
 		local map = workspace:WaitForChild("SimulatorBaseplateMap", 8)
 		local systems = map and map:WaitForChild("SimulatorSystems", 8)
 		local arenaRoot = systems and systems:WaitForChild("HiddenDuelArena", 8)
-		local container = arenaRoot and (slot == 1 and arenaRoot
-			or arenaRoot:WaitForChild("DuelArena_" .. tostring(slot), 8))
+		local container = arenaRoot and arenaRoot:WaitForChild("DuelArena_" .. tostring(slot), 8)
 		local floor = container and container:WaitForChild("ArenaFloor_" .. tostring(slot), 8)
 		if floor and not self.destroyed then
 			self.context.EvArenaReady:FireServer(slot)
