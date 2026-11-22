@@ -1,25 +1,52 @@
 -- ========================================================================
 -- SERVER GAMEPLAY (ServerScriptService -> Script)
--- The shared map is built by ReplicatedStorage.WorldBuilder in both Studio
--- edit mode (via Command Bar) and server runtime.
+-- The exported Workspace map is the source of truth in edit mode and at runtime.
 -- ========================================================================
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
 local savedHumanoidMovement = {}
 
-local WorldBuilder = require(ReplicatedStorage:WaitForChild("WorldBuilder"))
-local world = WorldBuilder.Build()
-local MapFolder = world.MapFolder
-local GYM_POS = world.GYM_POS
-local SpawnPad = world.SpawnPad
-local TouchSound = world.TouchSound
-local SpawnCrystal = world.SpawnCrystal
-local SpawnRing = world.SpawnRing
-local FlowingTextures = world.FlowingTextures
-local DecorFolder = world.DecorFolder
+local MapFolder = Workspace:WaitForChild("SimulatorBaseplateMap")
+local SpawnFolder = MapFolder:WaitForChild("StartingPointHub")
+local GYM_POS = Vector3.new(-68, 0, 130)
+local SpawnPad = SpawnFolder:WaitForChild("StartingPointSpawn")
+local TouchSound = SpawnPad:WaitForChild("SpawnChimeSFX")
+local SpawnCrystal = SpawnFolder:WaitForChild("SpawnFloatingCrystal")
+local SpawnRing = SpawnFolder:WaitForChild("SpawnHaloRing")
+local DecorFolder = MapFolder:WaitForChild("SimulatorTrees")
+
+local Baseplate = MapFolder:WaitForChild("SimulatorBaseplate")
+local RiverSound = Baseplate:FindFirstChildOfClass("Sound")
+if RiverSound then
+	RiverSound.Looped = true
+	RiverSound:Play()
+end
+
+local RiverFolder = MapFolder:WaitForChild("MountainFoothillRiver")
+local riverDirections = {
+	NorthRiver = Vector2.new(1, 0.25),
+	SouthRiver = Vector2.new(-1, -0.25),
+	EastRiver = Vector2.new(0.25, 1),
+	WestRiver = Vector2.new(-0.25, -1),
+}
+local FlowingTextures = {}
+for riverName, direction in pairs(riverDirections) do
+	local waterPart = RiverFolder:WaitForChild(riverName)
+	for _, texture in ipairs(waterPart:GetChildren()) do
+		if texture:IsA("Texture") then
+			local isFastLayer = texture.StudsPerTileU < 30
+			table.insert(FlowingTextures, {
+				tex = texture,
+				speedU = direction.X * (isFastLayer and 10 or 6),
+				speedV = direction.Y * (isFastLayer and 4 or 6),
+			})
+		end
+	end
+end
 
 -- 7. OYUNCU EKONOMİSİ (POWER & LOVE)
 ------------------------------------------------------------------------
