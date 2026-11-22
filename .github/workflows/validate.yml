@@ -45,4 +45,6 @@ jobs:
           lune run tests/PlayerDataSchema.test.luau
 
       - name: Build place
-        run: rojo build -o build/fight-for-baddies.rbxlx
+        run: |
+          mkdir -p build
+          rojo build -o build/fight-for-baddies.rbxlx
