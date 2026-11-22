@@ -84,6 +84,7 @@ git diff
 selene src tests
 lune run tests/GameRules.test.luau
 lune run tests/PlayerDataSchema.test.luau
+mkdir -p build
 rojo build -o build/fight-for-baddies.rbxlx
 ```
 
