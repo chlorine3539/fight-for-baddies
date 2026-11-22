@@ -20,6 +20,8 @@ rokit install
 ```text
 src/
 ├── Lighting/
+├── ReplicatedStorage/
+│   └── WorldBuilder.luau
 ├── ServerScriptService/
 │   └── Script_1.server.luau
 ├── StarterGui/
@@ -29,9 +31,27 @@ src/
 └── Workspace/
 ```
 
-- The server script owns map generation, player stats, RemoteEvents, the pull-up station, NPC interactions, and arena duels.
+- `ReplicatedStorage/WorldBuilder.luau` creates the visible map and lighting. It is shared by edit mode and server runtime.
+- The server script owns player stats, RemoteEvents, the pull-up station, NPC interactions, and arena duels.
 - The client script owns the HUD, input, dialogue UI, and visual feedback. Character movement and pull-up rewards are server-authoritative.
 - Duplicate server implementations and embedded client-source injection have been removed.
+
+## Show the map while editing in Studio
+
+The map is generated from code, so it does not appear in a freshly opened place until the builder is run. To create it in edit mode:
+
+1. Start `rojo serve` from the repository root and connect the Rojo plugin in Studio.
+2. In Studio, open **View → Command Bar**.
+3. Run this command once:
+
+   ```lua
+   require(game:GetService("ReplicatedStorage"):WaitForChild("WorldBuilder")).Build()
+   ```
+
+4. The map will be created directly in `Workspace` and will remain visible without starting a test session.
+5. Save the place in Roblox Studio.
+
+The server calls the same builder when a play session starts. It replaces the saved generated map with a fresh copy, so the edit-mode map is not duplicated during testing.
 
 ## Live development
 
