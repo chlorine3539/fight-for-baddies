@@ -250,95 +250,6 @@ BarPrompt.MaxActivationDistance = 14
 BarPrompt.RequiresLineOfSight = false
 
 local pullupCooldowns = {}
-local savedMotorC0 = {}
-
-local function applyPullupLimbPose(character, isHanging, isPulledUp)
-	local animateScript = character:FindFirstChild("Animate")
-	if animateScript then
-		local saved = savedHumanoidMovement[character]
-		if isHanging then
-			if saved and saved.AnimateDisabled == nil then
-				saved.AnimateDisabled = animateScript.Disabled
-			end
-			animateScript.Disabled = true
-		else
-			animateScript.Disabled = saved and saved.AnimateDisabled or false
-		end
-	end
-
-	local hum = character:FindFirstChildOfClass("Humanoid")
-	if hum and isHanging then
-		for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-			track:Stop(0)
-		end
-	end
-
-	local function findMotor6D(jointName)
-		for _, descendant in ipairs(character:GetDescendants()) do
-			if descendant:IsA("Motor6D") and descendant.Name == jointName then
-				return descendant
-			end
-		end
-		return nil
-	end
-
-	local torso = character:FindFirstChild("Torso")
-	if torso then
-		local rs = torso:FindFirstChild("Right Shoulder")
-		local ls = torso:FindFirstChild("Left Shoulder")
-		local rh = torso:FindFirstChild("Right Hip")
-		local lh = torso:FindFirstChild("Left Hip")
-		if rs and ls and rh and lh then
-			if not savedMotorC0[character] then
-				savedMotorC0[character] = { rs = rs.C0, ls = ls.C0, rh = rh.C0, lh = lh.C0 }
-			end
-			if isHanging then
-				local armPitch = isPulledUp and math.rad(130) or math.rad(175)
-				local legBend = isPulledUp and math.rad(25) or math.rad(10)
-				TweenService:Create(rs, TweenInfo.new(0.11), { C0 = CFrame.new(1, 0.7, 0) * CFrame.Angles(armPitch, math.rad(90), 0) }):Play()
-				TweenService:Create(ls, TweenInfo.new(0.11), { C0 = CFrame.new(-1, 0.7, 0) * CFrame.Angles(armPitch, math.rad(-90), 0) }):Play()
-				TweenService:Create(rh, TweenInfo.new(0.11), { C0 = CFrame.new(1, -1, 0) * CFrame.Angles(-legBend, math.rad(90), 0) }):Play()
-				TweenService:Create(lh, TweenInfo.new(0.11), { C0 = CFrame.new(-1, -1, 0) * CFrame.Angles(-legBend, math.rad(-90), 0) }):Play()
-			else
-				rs.C0 = savedMotorC0[character].rs
-				ls.C0 = savedMotorC0[character].ls
-				rh.C0 = savedMotorC0[character].rh
-				lh.C0 = savedMotorC0[character].lh
-				savedMotorC0[character] = nil
-			end
-		end
-	else
-		-- R15 Motor6Ds are attached to the torso parts, not the limb parts.
-		local rs = findMotor6D("RightShoulder")
-		local ls = findMotor6D("LeftShoulder")
-		local re = findMotor6D("RightElbow")
-		local le = findMotor6D("LeftElbow")
-		if rs and ls then
-			if not savedMotorC0[character] then
-				savedMotorC0[character] = {
-					rs = rs.C0, ls = ls.C0,
-					re = re and re.C0, le = le and le.C0
-				}
-			end
-			if isHanging then
-				local shoulderPitch = isPulledUp and math.rad(135) or math.rad(175)
-				local elbowBend = isPulledUp and math.rad(65) or math.rad(8)
-				TweenService:Create(rs, TweenInfo.new(0.11), { C0 = CFrame.new(rs.C0.Position) * CFrame.Angles(shoulderPitch, 0, math.rad(-6)) }):Play()
-				TweenService:Create(ls, TweenInfo.new(0.11), { C0 = CFrame.new(ls.C0.Position) * CFrame.Angles(shoulderPitch, 0, math.rad(6)) }):Play()
-				if re and le then
-					TweenService:Create(re, TweenInfo.new(0.11), { C0 = CFrame.new(re.C0.Position) * CFrame.Angles(elbowBend, 0, 0) }):Play()
-					TweenService:Create(le, TweenInfo.new(0.11), { C0 = CFrame.new(le.C0.Position) * CFrame.Angles(elbowBend, 0, 0) }):Play()
-				end
-			else
-				rs.C0 = savedMotorC0[character].rs
-				ls.C0 = savedMotorC0[character].ls
-				if re and savedMotorC0[character].re then re.C0 = savedMotorC0[character].re end
-				if le and savedMotorC0[character].le then le.C0 = savedMotorC0[character].le end
-				savedMotorC0[character] = nil
-			end
-		end
-	end
-end
 
 local function togglePlayerPullup(player, forceState)
 	local current = player:GetAttribute("OnPullup") == true
@@ -364,12 +275,7 @@ local function togglePlayerPullup(player, forceState)
 			JumpHeight = humanoid.JumpHeight,
 			AutoRotate = humanoid.AutoRotate,
 			PlatformStand = humanoid.PlatformStand,
-			AnimateDisabled = nil,
 		}
-		local animateScript = character:FindFirstChild("Animate")
-		if animateScript then
-			savedHumanoidMovement[character].AnimateDisabled = animateScript.Disabled
-		end
 
 		player:SetAttribute("OnPullup", true)
 		humanoid.WalkSpeed = 0
@@ -380,7 +286,6 @@ local function togglePlayerPullup(player, forceState)
 		hrp.AssemblyLinearVelocity = Vector3.zero
 		hrp.AssemblyAngularVelocity = Vector3.zero
 		hrp.CFrame = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
-		pcall(applyPullupLimbPose, character, true, false)
 		EvTogglePullup:FireClient(player, true)
 		return
 	end
@@ -416,7 +321,6 @@ local function togglePlayerPullup(player, forceState)
 		end
 	end
 	if character then
-		pcall(applyPullupLimbPose, character, false, false)
 		savedHumanoidMovement[character] = nil
 	end
 	EvTogglePullup:FireClient(player, false)
@@ -458,11 +362,9 @@ EvPullupAction.OnServerEvent:Connect(function(player)
 
 	local upCF = CFrame.new(GYM_POS + Vector3.new(0, 9.4, 0.15)) * CFrame.Angles(math.rad(-8), 0, 0)
 	local downCF = CFrame.new(GYM_POS + Vector3.new(0, 7.6, 0.25)) * CFrame.Angles(math.rad(6), 0, 0)
-	applyPullupLimbPose(character, true, true)
 	TweenService:Create(hrp, TweenInfo.new(0.11, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CFrame = upCF }):Play()
 	task.delay(0.13, function()
 		if player.Parent and player:GetAttribute("OnPullup") == true and hrp.Parent and hrp.Anchored then
-			applyPullupLimbPose(character, true, false)
 			TweenService:Create(hrp, TweenInfo.new(0.13, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = downCF }):Play()
 		end
 	end)
@@ -1050,6 +952,5 @@ Players.PlayerRemoving:Connect(function(player)
 	local character = player.Character
 	if character then
 		savedHumanoidMovement[character] = nil
-		savedMotorC0[character] = nil
 	end
 end)

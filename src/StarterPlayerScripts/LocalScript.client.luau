@@ -81,6 +81,173 @@ if LocalPlayer.Character then
 end
 LocalPlayer.CharacterAdded:Connect(bindArenaSwordWatch)
 
+-- Pull-up poses are evaluated on the client. Upgraded R15 rigs replace the
+-- shoulder/elbow Motor6Ds with AnimationConstraints; their Transform is written
+-- by the Animator each frame, so procedural layers must be applied in
+-- PreSimulation and rebuilt from a saved base instead of accumulating.
+local POSE_JOINTS = {
+	["Right Shoulder"] = { side = 1, limb = "Shoulder", legacy = true },
+	["Left Shoulder"] = { side = -1, limb = "Shoulder", legacy = true },
+	["Right Hip"] = { side = 1, limb = "Hip", legacy = true },
+	["Left Hip"] = { side = -1, limb = "Hip", legacy = true },
+	["RightShoulder"] = { side = 1, limb = "Shoulder" },
+	["LeftShoulder"] = { side = -1, limb = "Shoulder" },
+	["RightElbow"] = { side = 1, limb = "Elbow" },
+	["LeftElbow"] = { side = -1, limb = "Elbow" },
+	["RightUpperLeg"] = { side = 1, limb = "Leg" },
+	["LeftUpperLeg"] = { side = -1, limb = "Leg" },
+}
+
+local pullupPose = {
+	active = false,
+	character = nil,
+	animator = nil,
+	animateScript = nil,
+	animateWasDisabled = false,
+	joints = {},
+	phase = "hang",
+	phaseToken = 0,
+}
+local poseSimulationConnection = nil
+
+local function legacyC0ForPose(config, isUp)
+	if config.limb == "Shoulder" then
+		local pitch = isUp and math.rad(130) or math.rad(175)
+		return CFrame.new(config.side, 0.7, 0) * CFrame.Angles(pitch, math.rad(90 * config.side), 0)
+	end
+	local bend = isUp and math.rad(25) or math.rad(10)
+	return CFrame.new(config.side, -1, 0) * CFrame.Angles(-bend, math.rad(90 * config.side), 0)
+end
+
+local function constraintOffsetForPose(config, isUp)
+	if config.limb == "Shoulder" then
+		local pitch = isUp and math.rad(135) or math.rad(175)
+		return CFrame.Angles(pitch, 0, math.rad(-6 * config.side))
+	elseif config.limb == "Elbow" then
+		return CFrame.Angles(math.rad(isUp and 65 or 8), 0, 0)
+	end
+	return CFrame.Angles(math.rad(isUp and -25 or -10), 0, 0)
+end
+
+local stopPullupPose
+
+local function applyPullupPoseFrame()
+	local pose = pullupPose
+	if not pose.active then return end
+	if not pose.character or not pose.character.Parent then
+		stopPullupPose()
+		return
+	end
+	if pose.animator and pose.animator.EvaluationThrottled then return end
+
+	local isUp = pose.phase == "up"
+	for _, entry in ipairs(pose.joints) do
+		local joint = entry.joint
+		if not joint.Parent then
+			stopPullupPose()
+			return
+		end
+		if entry.usesC0 then
+			joint.C0 = legacyC0ForPose(entry.config, isUp)
+		else
+			joint.Transform = constraintOffsetForPose(entry.config, isUp) * entry.baseTransform
+		end
+	end
+end
+
+stopPullupPose = function()
+	if poseSimulationConnection then
+		poseSimulationConnection:Disconnect()
+		poseSimulationConnection = nil
+	end
+	local pose = pullupPose
+	if not pose.active then return end
+	pose.active = false
+	pose.phaseToken += 1
+	for _, entry in ipairs(pose.joints) do
+		if entry.joint.Parent then
+			if entry.usesC0 then
+				entry.joint.C0 = entry.baseC0
+			else
+				entry.joint.Transform = entry.baseTransform
+			end
+		end
+	end
+	if pose.animateScript and pose.animateScript.Parent then
+		pose.animateScript.Disabled = pose.animateWasDisabled
+	end
+	table.clear(pose.joints)
+	pose.character = nil
+	pose.animator = nil
+	pose.animateScript = nil
+end
+
+local function startPullupPose(character)
+	stopPullupPose()
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then return end
+
+	local pose = pullupPose
+	pose.active = true
+	pose.character = character
+	pose.animator = humanoid:FindFirstChildOfClass("Animator")
+	pose.phase = "hang"
+	pose.phaseToken += 1
+
+	local animateScript = character:FindFirstChild("Animate")
+	pose.animateScript = animateScript
+	if animateScript then
+		pose.animateWasDisabled = animateScript.Disabled
+		animateScript.Disabled = true
+	end
+	for _, track in ipairs(humanoid:GetPlayingAnimationTracks()) do
+		track:Stop(0)
+	end
+
+	for _, descendant in ipairs(character:GetDescendants()) do
+		local config = POSE_JOINTS[descendant.Name]
+		if config and (descendant:IsA("Motor6D") or descendant:IsA("AnimationConstraint")) then
+			if config.legacy and descendant:IsA("Motor6D") then
+				table.insert(pose.joints, {
+					joint = descendant, config = config, usesC0 = true, baseC0 = descendant.C0,
+				})
+			else
+				table.insert(pose.joints, {
+					joint = descendant, config = config, usesC0 = false, baseTransform = descendant.Transform,
+				})
+			end
+		end
+	end
+
+	if not poseSimulationConnection then
+		poseSimulationConnection = RunService.PreSimulation:Connect(function()
+			local ok, err = pcall(applyPullupPoseFrame)
+			if not ok then
+				warn("[Simulator] pull-up pose error: " .. tostring(err))
+				stopPullupPose()
+			end
+		end)
+	end
+end
+
+local function setPullupPosePhase(isUp)
+	if not pullupPose.active then return end
+	pullupPose.phase = isUp and "up" or "hang"
+	pullupPose.phaseToken += 1
+	local token = pullupPose.phaseToken
+	if isUp then
+		task.delay(0.13, function()
+			if pullupPose.active and pullupPose.phaseToken == token then
+				pullupPose.phase = "hang"
+			end
+		end)
+	end
+end
+
+LocalPlayer.CharacterRemoving:Connect(function()
+	stopPullupPose()
+end)
+
 -- Diğer oyuncuların barfiks çektiğini gizleme + NPC'lere yaklaştıkça yazıyı büyütme
 RunService.RenderStepped:Connect(function()
 	local myChar = LocalPlayer.Character
@@ -231,10 +398,18 @@ ExitPullupBtn.MouseButton1Click:Connect(requestExitPullup)
 EvTogglePullup.OnClientEvent:Connect(function(isOn)
 	exitRequestPending = false
 	setPullupState(isOn)
+	if isOn then
+		if not pullupPose.active then
+			startPullupPose(LocalPlayer.Character)
+		end
+	else
+		stopPullupPose()
+	end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
 	exitRequestPending = false
+	stopPullupPose()
 	setPullupState(false)
 end)
 
@@ -377,6 +552,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 EvPullupAction.OnClientEvent:Connect(function(gainedPower)
+	setPullupPosePhase(true)
 	spawnFloatingPopup("+" .. tostring(gainedPower) .. " Power 💪", Color3.fromRGB(255, 210, 65))
 	local char = LocalPlayer.Character
 	local hrp = char and char:FindFirstChild("HumanoidRootPart")
