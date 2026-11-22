@@ -137,10 +137,10 @@ local function aPart(parent, n, sh, sz, cf, mat, col, cc)
 end
 
 local function buildArenaShell(center, parent, slotLabel)
-	aPart(parent, "ArenaFloor_" .. slotLabel, Enum.PartType.Cylinder, Vector3.new(2, 110, 110), CFrame.new(center) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Marble, Color3.fromRGB(42, 46, 56), true)
-	aPart(parent, "ArenaRingGold", Enum.PartType.Cylinder, Vector3.new(2.1, 86, 86), CFrame.new(center) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Neon, Color3.fromRGB(255, 195, 75), false)
-	aPart(parent, "ArenaInnerFloor", Enum.PartType.Cylinder, Vector3.new(2.15, 83, 83), CFrame.new(center) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.Slate, Color3.fromRGB(58, 64, 78), true)
-	aPart(parent, "ArenaCeiling", Enum.PartType.Cylinder, Vector3.new(2, 116, 116), CFrame.new(center + Vector3.new(0, 45, 0)) * CFrame.Angles(0, 0, math.rad(90)), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 28, 36), true)
+	aPart(parent, "ArenaFloor_" .. slotLabel, Enum.PartType.Cylinder, Vector3.new(110, 2, 110), CFrame.new(center), Enum.Material.Marble, Color3.fromRGB(42, 46, 56), true)
+	aPart(parent, "ArenaRingGold", Enum.PartType.Cylinder, Vector3.new(86, 2.1, 86), CFrame.new(center), Enum.Material.Neon, Color3.fromRGB(255, 195, 75), false)
+	aPart(parent, "ArenaInnerFloor", Enum.PartType.Cylinder, Vector3.new(83, 2.15, 83), CFrame.new(center), Enum.Material.Slate, Color3.fromRGB(58, 64, 78), true)
+	aPart(parent, "ArenaCeiling", Enum.PartType.Cylinder, Vector3.new(116, 2, 116), CFrame.new(center + Vector3.new(0, 45, 0)), Enum.Material.SmoothPlastic, Color3.fromRGB(25, 28, 36), true)
 
 	for i = 1, 16 do
 		local ang = (i / 16) * math.pi * 2
