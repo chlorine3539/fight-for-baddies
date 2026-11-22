@@ -5,6 +5,7 @@
 -- ========================================================================
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
 
 local PlayerDataSchema = require(script.Parent.Parent.Logic.PlayerDataSchema)
 
@@ -17,6 +18,10 @@ local AUTOSAVE_INTERVAL = 120
 local MAX_ATTEMPTS = 4
 local BACKOFF = { 0.5, 1, 2 }
 local SHUTDOWN_GRACE_SECONDS = 8
+
+-- Studio is allowed to fall back to session-only play when DataStore access is
+-- unavailable. Published servers keep the strict restricted-state policy.
+local STUDIO_SESSION_FALLBACK = RunService:IsStudio()
 
 local contextRef
 local dataStore
@@ -52,7 +57,22 @@ end
 local function setRestricted(player)
 	player:SetAttribute("DataLoaded", false)
 	player:SetAttribute("DataRestricted", true)
+	player:SetAttribute("DataPersistent", false)
 	notifyRestricted(player)
+end
+
+local function allowStudioSessionOnly(player, state, label, err)
+	state.sessionOnly = true
+	state.loaded = false
+	player:SetAttribute("DataLoaded", false)
+	player:SetAttribute("DataRestricted", false)
+	player:SetAttribute("DataPersistent", false)
+	if err then
+		warnFor(player, label, err)
+	end
+	if contextRef and contextRef.EvNotify then
+		contextRef.EvNotify:FireClient(player, "DataSessionOnly", "Veri kaydı kullanılamıyor; ilerleme bu oturumda geçerli.")
+	end
 end
 
 local function placeCharacterAtSpawn(character, spawnPad)
@@ -83,14 +103,21 @@ end
 
 local function loadPlayer(player, state)
 	if not dataStore then
-		setRestricted(player)
+		if STUDIO_SESSION_FALLBACK then
+			allowStudioSessionOnly(player, state, "DataStoreService unavailable", "isolated Studio session")
+		else
+			setRestricted(player)
+		end
 		return
 	end
 
 	local key = PlayerDataSchema.keyFor(player.UserId)
 	if not key then
-		warnFor(player, "invalid key", player.UserId)
-		setRestricted(player)
+		if STUDIO_SESSION_FALLBACK then
+			allowStudioSessionOnly(player, state, "invalid key", player.UserId)
+		else
+			setRestricted(player)
+		end
 		return
 	end
 
@@ -98,7 +125,11 @@ local function loadPlayer(player, state)
 		return dataStore:GetAsync(key)
 	end)
 	if not ok then
-		setRestricted(player)
+		if STUDIO_SESSION_FALLBACK then
+			allowStudioSessionOnly(player, state, "load failed", result)
+		else
+			setRestricted(player)
+		end
 		return
 	end
 
@@ -109,8 +140,11 @@ local function loadPlayer(player, state)
 		data = PlayerDataSchema.deserialize(result)
 	end
 	if not data then
-		warnFor(player, "invalid stored data", "schema rejected stored value")
-		setRestricted(player)
+		if STUDIO_SESSION_FALLBACK then
+			allowStudioSessionOnly(player, state, "invalid stored data", "schema rejected stored value")
+		else
+			setRestricted(player)
+		end
 		return
 	end
 
@@ -126,6 +160,7 @@ local function loadPlayer(player, state)
 	state.dirty = false
 	player:SetAttribute("DataLoaded", true)
 	player:SetAttribute("DataRestricted", false)
+	player:SetAttribute("DataPersistent", true)
 end
 
 local function savePlayer(player, state)
@@ -180,7 +215,7 @@ local function setupPlayer(player)
 	local context = contextRef
 	local SpawnPad = context.SpawnPad
 	local savedHumanoidMovement = context.savedHumanoidMovement
-	local state = { loaded = false, dirty = false, saving = false, pending = false, leaving = false, connections = {} }
+	local state = { loaded = false, sessionOnly = false, dirty = false, saving = false, pending = false, leaving = false, connections = {} }
 	sessions[player] = state
 
 	local ls = player:FindFirstChild("leaderstats")
@@ -204,6 +239,7 @@ local function setupPlayer(player)
 	player:SetAttribute("OnPullup", false)
 	player:SetAttribute("InArena", false)
 	player:SetAttribute("DuelPending", false)
+	player:SetAttribute("DataPersistent", false)
 	setRestricted(player)
 
 	local function markDirty()
